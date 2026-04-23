@@ -57,6 +57,57 @@ app.post('/api/chat', async (req, res) => {
   }
 })
 
+const NPC_VOICES = {
+  rick: 'echo',
+  valentina: 'shimmer',
+  bartender: 'onyx',
+  waiter: 'nova',
+}
+
+app.post('/api/help', async (req, res) => {
+  const { type, npcId, text, conversation } = req.body
+  if (!openai) return res.status(503).json({ error: 'No API key' })
+
+  let prompt = ''
+  if (type === 'translate') {
+    prompt = `Translate this to Brazilian Portuguese. Reply with ONLY the translation, nothing else:\n\n"${text}"`
+  } else if (type === 'suggest') {
+    const last = (conversation || []).filter((m) => m.role === 'assistant').slice(-1)[0]?.content || ''
+    prompt = `A ${npcId} at a luxury beach club just said: "${last}"\n\nGive exactly 3 natural English replies a learner could say. Make them vary in tone (casual, curious, friendly). Reply with ONLY the 3 sentences, one per line, no numbers or bullets.`
+  } else if (type === 'fix') {
+    prompt = `Fix this English to sound natural and fluent. Reply with ONLY the corrected sentence:\n\n"${text}"`
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 200,
+      temperature: 0.4,
+    })
+    res.json({ result: completion.choices[0].message.content?.trim() || '' })
+  } catch {
+    res.status(500).json({ error: 'Help failed' })
+  }
+})
+
+app.post('/api/tts', async (req, res) => {
+  const { text, npcId } = req.body
+  if (!openai) return res.status(503).json({ error: 'No API key' })
+  try {
+    const mp3 = await openai.audio.speech.create({
+      model: 'tts-1',
+      voice: NPC_VOICES[npcId] || 'nova',
+      input: text,
+    })
+    const buffer = Buffer.from(await mp3.arrayBuffer())
+    res.setHeader('Content-Type', 'audio/mpeg')
+    res.send(buffer)
+  } catch {
+    res.status(500).json({ error: 'TTS failed' })
+  }
+})
+
 app.get(/(.*)/, (_req, res) => {
   res.sendFile(join(__dirname, 'dist', 'index.html'))
 })
