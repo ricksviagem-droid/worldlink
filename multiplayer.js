@@ -32,8 +32,9 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('player disconnected:', socket.id)
-    delete players[socket.id]
-    io.emit('updatePlayers', players)
+    const leftId = socket.id
+    delete players[leftId]
+    io.emit('playerLeft', leftId)
   })
 })
 
