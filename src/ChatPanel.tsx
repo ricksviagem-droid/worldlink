@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { NpcDef } from './npcData'
+import { audio } from './audio'
 
 type Message = { role: 'user' | 'assistant'; content: string }
 type HelpMode = 'translate' | 'suggest' | 'fix' | 'hear' | null
@@ -46,6 +47,7 @@ export function ChatPanel({ npc, onClose }: ChatPanelProps) {
   const sendMessage = (text?: string) => {
     const userMsg = (text ?? input).trim()
     if (!userMsg || loading) return
+    audio.playSend()
     setInput('')
     const updated: Message[] = [...messages, { role: 'user', content: userMsg }]
     setMessages(updated)

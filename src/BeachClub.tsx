@@ -144,6 +144,25 @@ function DJBooth() {
   )
 }
 
+function BackgroundCustomer({ position, color, rotation = 0 }: {
+  position: [number, number, number]
+  color: string
+  rotation?: number
+}) {
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      <mesh position={[0, 0.55, 0]}>
+        <boxGeometry args={[0.45, 0.9, 0.3]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, 1.25, 0]}>
+        <sphereGeometry args={[0.22, 12, 12]} />
+        <meshStandardMaterial color="#c8a07a" />
+      </mesh>
+    </group>
+  )
+}
+
 export function BeachClub() {
   return (
     <>
@@ -151,6 +170,15 @@ export function BeachClub() {
       <Pool />
       <Bar />
       <DJBooth />
+
+      {/* Background customers — visual life */}
+      <BackgroundCustomer position={[14.5, 0, -6]} color="#3a5a8a" rotation={Math.PI} />
+      <BackgroundCustomer position={[14.5, 0, -4]} color="#8a3a5a" rotation={Math.PI} />
+      <BackgroundCustomer position={[14.5, 0, -2]} color="#5a8a3a" rotation={Math.PI} />
+      <BackgroundCustomer position={[-3, 0, -5]} color="#6a4a2a" rotation={0.3} />
+      <BackgroundCustomer position={[3, 0, -5]} color="#2a4a6a" rotation={-0.3} />
+      <BackgroundCustomer position={[-2, 0, -10]} color="#8a6a2a" rotation={0.8} />
+      <BackgroundCustomer position={[2, 0, -10]} color="#4a2a8a" rotation={-0.5} />
 
       <PalmTree position={[-14, 0, -15]} />
       <PalmTree position={[14, 0, -15]} />

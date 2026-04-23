@@ -6,6 +6,7 @@ import * as THREE from 'three'
 import { BeachClub } from './BeachClub'
 import { ChatPanel } from './ChatPanel'
 import { NPCS, TALK_DISTANCE, type NpcDef } from './npcData'
+import { audio } from './audio'
 
 const socket = io()
 
@@ -137,14 +138,18 @@ export default function App() {
     }
   }, [])
 
-  // Proximity detection
+  // Proximity detection + audio init on first move
+  const prevNearby = useRef<string | null>(null)
   useEffect(() => {
+    audio.init()
     const nearby = NPCS.find(npc => {
       const dx = position.x - npc.position[0]
       const dz = position.z - npc.position[2]
       return Math.sqrt(dx * dx + dz * dz) < TALK_DISTANCE
     }) ?? null
     setNearbyNpc(nearby)
+    if (nearby && nearby.id !== prevNearby.current) audio.playProximity()
+    prevNearby.current = nearby?.id ?? null
   }, [position])
 
   // Keyboard
@@ -162,6 +167,7 @@ export default function App() {
       if ((e.key === 'e' || e.key === 'E') && nearbyNpc) {
         setActiveChatNpc(nearbyNpc)
         chatOpenRef.current = true
+        audio.playOpen()
         return
       }
 
@@ -182,6 +188,7 @@ export default function App() {
   const closeChat = () => {
     setActiveChatNpc(null)
     chatOpenRef.current = false
+    audio.playClose()
   }
 
   return (
