@@ -42,7 +42,7 @@ io.on('connection', (socket) => {
   })
 })
 
-const PORT = process.env.PORT || 3000
+const PORT = Number(process.env.PORT) || 3000
 httpServer.listen(PORT, () => {
   console.log(`Casa Blanca running on port ${PORT}`)
 })
