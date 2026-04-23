@@ -18,6 +18,10 @@ export function ChatPanel({ npc, onClose }: ChatPanelProps) {
   const [helpResult, setHelpResult] = useState('')
   const [helpLoading, setHelpLoading] = useState(false)
   const [fixInput, setFixInput] = useState('')
+  const [recording, setRecording] = useState(false)
+  const [transcribing, setTranscribing] = useState(false)
+  const mediaRecRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -58,6 +62,45 @@ export function ChatPanel({ npc, onClose }: ChatPanelProps) {
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+  }
+
+  const toggleRecording = async () => {
+    if (recording) {
+      mediaRecRef.current?.stop()
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg'
+      const rec = new MediaRecorder(stream, { mimeType })
+      chunksRef.current = []
+      rec.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        setRecording(false)
+        setTranscribing(true)
+        const blob = new Blob(chunksRef.current, { type: mimeType })
+        try {
+          const base64 = await new Promise<string>(resolve => {
+            const reader = new FileReader()
+            reader.onload = () => resolve((reader.result as string).split(',')[1])
+            reader.readAsDataURL(blob)
+          })
+          const res = await fetch('/api/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio: base64, mimeType }),
+          })
+          const data = await res.json()
+          if (data.text) setInput(data.text)
+        } catch { /* silent */ }
+        setTranscribing(false)
+      }
+      mediaRecRef.current = rec
+      rec.start()
+      setRecording(true)
+      audio.playRecord()
+    } catch { alert('Microphone access required') }
   }
 
   const lastNpcMsg = () =>
@@ -322,11 +365,25 @@ export function ChatPanel({ npc, onClose }: ChatPanelProps) {
 
       {/* Input */}
       <div style={{ display: 'flex', gap: 8, padding: '10px 14px 14px' }}>
+        <button
+          onClick={toggleRecording}
+          title={recording ? 'Stop recording' : 'Speak'}
+          style={{
+            width: 42, height: 42, borderRadius: 10, border: 'none',
+            background: recording ? 'rgba(231,76,60,0.85)' : 'rgba(255,255,255,0.08)',
+            color: recording ? '#fff' : 'rgba(255,255,255,0.55)',
+            fontSize: 18, cursor: 'pointer', flexShrink: 0,
+            boxShadow: recording ? '0 0 0 3px rgba(231,76,60,0.35)' : 'none',
+            transition: 'all 0.2s',
+          }}
+        >
+          {transcribing ? '⏳' : recording ? '⏹' : '🎤'}
+        </button>
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Say something..."
+          placeholder={recording ? 'Recording… press ⏹ to stop' : transcribing ? 'Transcribing…' : 'Say something…'}
           autoFocus
           style={{
             flex: 1, padding: '10px 14px',

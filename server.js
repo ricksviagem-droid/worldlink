@@ -3,7 +3,7 @@ import { createServer } from 'http'
 import { Server } from 'socket.io'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { OpenAI } from 'openai'
+import { OpenAI, toFile } from 'openai'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -88,6 +88,23 @@ app.post('/api/help', async (req, res) => {
     res.json({ result: completion.choices[0].message.content?.trim() || '' })
   } catch {
     res.status(500).json({ error: 'Help failed' })
+  }
+})
+
+app.post('/api/transcribe', async (req, res) => {
+  const { audio, mimeType } = req.body
+  if (!openai) return res.status(503).json({ error: 'No API key' })
+  try {
+    const buffer = Buffer.from(audio, 'base64')
+    const file = await toFile(buffer, 'voice.webm', { type: mimeType || 'audio/webm' })
+    const result = await openai.audio.transcriptions.create({
+      file,
+      model: 'whisper-1',
+      language: 'en',
+    })
+    res.json({ text: result.text })
+  } catch {
+    res.status(500).json({ error: 'Transcription failed' })
   }
 })
 
