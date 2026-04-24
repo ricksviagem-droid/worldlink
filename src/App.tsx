@@ -93,6 +93,15 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }
       return
     }
 
+    // Auto-follow: when moving, swing camera behind the player
+    if (speed > 1.0) {
+      const targetYaw = -facingRef.current
+      let diff = targetYaw - (camYawRef.current ?? 0)
+      while (diff > Math.PI) diff -= Math.PI * 2
+      while (diff < -Math.PI) diff += Math.PI * 2
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, 5 * delta)
+    }
+
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
     const lerpCfg = Math.min(1, 6 * delta)
     smoothY.current  += (cfg.y  - smoothY.current)  * lerpCfg
@@ -142,7 +151,8 @@ function DJLights() {
 
 // ─── Movement System (runs inside Canvas via useFrame) ───────────────────────
 function MovementSystem({
-  keysRef, mobileInputRef, velocityRef, positionRef, facingRef, velMagRef, setPosition, chatOpenRef,
+  keysRef, mobileInputRef, velocityRef, positionRef, facingRef, velMagRef,
+  camYawRef, setPosition, chatOpenRef,
 }: {
   keysRef: { current: Record<string, boolean> }
   mobileInputRef: { current: { x: number; z: number } }
@@ -150,6 +160,7 @@ function MovementSystem({
   positionRef: { current: { x: number; z: number } }
   facingRef: { current: number }
   velMagRef: { current: number }
+  camYawRef: { current: number }
   setPosition: (p: PlayerState) => void
   chatOpenRef: React.RefObject<boolean>
 }) {
@@ -158,16 +169,24 @@ function MovementSystem({
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
     const MAX_SPEED = 5.2, ACCEL = 24, DECEL = 20, TURN_SPD = Math.PI * 5
+
+    // Raw screen-space input (up = -iz, right = +ix)
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
     const keys = keysRef.current
     if (keys['w'] || keys['ArrowUp'])    iz -= 1
     if (keys['s'] || keys['ArrowDown'])  iz += 1
     if (keys['a'] || keys['ArrowLeft'])  ix -= 1
     if (keys['d'] || keys['ArrowRight']) ix += 1
-    const len = Math.sqrt(ix * ix + iz * iz)
+
+    // Rotate input by camera yaw → camera-relative world movement
+    const yaw = camYawRef.current
+    const wix = iz * Math.sin(yaw) + ix * Math.cos(yaw)
+    const wiz = iz * Math.cos(yaw) - ix * Math.sin(yaw)
+
+    const len = Math.sqrt(wix * wix + wiz * wiz)
     const hasInput = len > 0.01
     if (hasInput) {
-      const nx = ix / len, nz = iz / len
+      const nx = wix / len, nz = wiz / len
       velocityRef.current.x += (nx * MAX_SPEED - velocityRef.current.x) * Math.min(1, ACCEL * delta)
       velocityRef.current.z += (nz * MAX_SPEED - velocityRef.current.z) * Math.min(1, ACCEL * delta)
       const targetFacing = Math.atan2(nx, -nz)
@@ -951,7 +970,7 @@ export default function App() {
         <DJLights />
 
         <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} />
-        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
+        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
         <BeachClub />
         <ReceptionArea />
         <ValentinaBuggy />
