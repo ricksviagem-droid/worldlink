@@ -5,10 +5,12 @@ import { io } from 'socket.io-client'
 import * as THREE from 'three'
 import { BeachClub } from './BeachClub'
 import { ChatPanel } from './ChatPanel'
+import { MobileControls } from './MobileControls'
 import { NPCS, TALK_DISTANCE, type NpcDef } from './npcData'
 import { audio } from './audio'
 
 const socket = io()
+const isMobile = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
 
 type PlayerState = { x: number; z: number }
 type PlayersMap = Record<string, PlayerState>
@@ -25,10 +27,8 @@ const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide']
 // ─── Camera ─────────────────────────────────────────────────────────────────
 function CameraRig({ target, mode }: { target: PlayerState; mode: CamMode }) {
   const { camera } = useThree()
-  const t = useRef(target)
-  t.current = target
-  const m = useRef(mode)
-  m.current = mode
+  const t = useRef(target); t.current = target
+  const m = useRef(mode); m.current = mode
   useFrame(() => {
     const cfg = CAM[m.current]
     camera.position.x += (t.current.x - camera.position.x) * cfg.speed
@@ -39,18 +39,47 @@ function CameraRig({ target, mode }: { target: PlayerState; mode: CamMode }) {
   return null
 }
 
+// ─── Character shape (capsule body + sphere head) ────────────────────────────
+function CharacterMesh({ bodyColor, headColor }: { bodyColor: string; headColor: string }) {
+  return (
+    <>
+      {/* Legs */}
+      <mesh position={[-0.13, 0.22, 0]} castShadow>
+        <capsuleGeometry args={[0.09, 0.3, 6, 8]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.8} />
+      </mesh>
+      <mesh position={[0.13, 0.22, 0]} castShadow>
+        <capsuleGeometry args={[0.09, 0.3, 6, 8]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.8} />
+      </mesh>
+      {/* Torso */}
+      <mesh position={[0, 0.85, 0]} castShadow>
+        <capsuleGeometry args={[0.22, 0.5, 8, 12]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.7} />
+      </mesh>
+      {/* Arms */}
+      <mesh position={[-0.3, 0.82, 0]} rotation={[0, 0, 0.4]} castShadow>
+        <capsuleGeometry args={[0.07, 0.4, 6, 8]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.8} />
+      </mesh>
+      <mesh position={[0.3, 0.82, 0]} rotation={[0, 0, -0.4]} castShadow>
+        <capsuleGeometry args={[0.07, 0.4, 6, 8]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.8} />
+      </mesh>
+      {/* Head */}
+      <mesh position={[0, 1.42, 0]} castShadow>
+        <sphereGeometry args={[0.24, 16, 16]} />
+        <meshStandardMaterial color={headColor} roughness={0.6} />
+      </mesh>
+    </>
+  )
+}
+
 // ─── Players ─────────────────────────────────────────────────────────────────
 function LocalPlayer({ position }: { position: PlayerState }) {
   return (
     <group position={[position.x, 0, position.z]}>
-      <mesh position={[0, 0.7, 0]} castShadow>
-        <boxGeometry args={[0.55, 1.1, 0.35]} />
-        <meshStandardMaterial color="#f39c12" />
-      </mesh>
-      <mesh position={[0, 1.55, 0]} castShadow>
-        <sphereGeometry args={[0.28, 16, 16]} />
-        <meshStandardMaterial color="#f5cba7" />
-      </mesh>
+      <CharacterMesh bodyColor="#e67e22" headColor="#f0c27f" />
     </group>
   )
 }
@@ -67,14 +96,7 @@ function RemotePlayer({ targetPosition }: { targetPosition: PlayerState }) {
   })
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
-      <mesh position={[0, 0.7, 0]} castShadow>
-        <boxGeometry args={[0.55, 1.1, 0.35]} />
-        <meshStandardMaterial color="#3498db" />
-      </mesh>
-      <mesh position={[0, 1.55, 0]} castShadow>
-        <sphereGeometry args={[0.28, 16, 16]} />
-        <meshStandardMaterial color="#f5cba7" />
-      </mesh>
+      <CharacterMesh bodyColor="#2980b9" headColor="#f0c27f" />
     </group>
   )
 }
@@ -116,14 +138,7 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
 
   return (
     <group ref={groupRef} position={npc.position}>
-      <mesh position={[0, 0.7, 0]} castShadow>
-        <boxGeometry args={[0.55, 1.1, 0.35]} />
-        <meshStandardMaterial color={npc.bodyColor} />
-      </mesh>
-      <mesh position={[0, 1.55, 0]} castShadow>
-        <sphereGeometry args={[0.28, 16, 16]} />
-        <meshStandardMaterial color={npc.headColor} />
-      </mesh>
+      <CharacterMesh bodyColor={npc.bodyColor} headColor={npc.headColor} />
       <Html position={[0, 2.2, 0]} center distanceFactor={12}>
         <div style={{
           background: nearby ? 'rgba(243,156,18,0.9)' : 'rgba(0,0,0,0.65)',
@@ -234,6 +249,19 @@ export default function App() {
     audio.playClose()
   }
 
+  const handleMobileMove = (x: number, z: number) => {
+    if (chatOpenRef.current) return
+    setPosition(prev => ({ x: prev.x + x, z: prev.z + z }))
+  }
+
+  const handleMobileTalk = () => {
+    if (nearbyNpc && !chatOpenRef.current) {
+      setActiveChatNpc(nearbyNpc)
+      chatOpenRef.current = true
+      audio.playOpen()
+    }
+  }
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', background: '#87ceeb' }}>
       {/* HUD */}
@@ -275,6 +303,11 @@ export default function App() {
 
       {/* Chat panel */}
       {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
+
+      {/* Mobile controls */}
+      {isMobile && (
+        <MobileControls onMove={handleMobileMove} onTalk={handleMobileTalk} nearNpc={!!nearbyNpc} />
+      )}
 
       <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }}>
         <color attach="background" args={['#87ceeb']} />
