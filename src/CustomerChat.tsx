@@ -70,7 +70,7 @@ export function CustomerChat({ customerId, onClose }: Props) {
     }}>
       <div style={{
         width: '100%', maxWidth: 420, margin: '0 16px',
-        background: 'rgba(8,8,20,0.96)', backdropFilter: 'blur(20px)',
+        background: 'rgba(8,8,20,0.72)', backdropFilter: 'blur(24px)',
         borderRadius: 22, overflow: 'hidden',
         border: '1.5px solid rgba(255,255,255,0.1)',
         fontFamily: '-apple-system, sans-serif',

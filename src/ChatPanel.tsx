@@ -219,9 +219,9 @@ export function ChatPanel({ npc, onClose }: ChatPanelProps) {
   return (
     <div style={{
       position: 'absolute', bottom: 20, right: 20, width: 370,
-      background: 'rgba(8,8,24,0.94)', borderRadius: 18,
-      border: '1px solid rgba(255,255,255,0.09)',
-      backdropFilter: 'blur(14px)', display: 'flex', flexDirection: 'column',
+      background: 'rgba(8,8,24,0.72)', borderRadius: 18,
+      border: '1px solid rgba(255,255,255,0.12)',
+      backdropFilter: 'blur(22px)', display: 'flex', flexDirection: 'column',
       overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
       zIndex: 100, boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
     }}>

@@ -368,6 +368,230 @@ function DJBooth() {
   )
 }
 
+function WaveAnimation() {
+  const refs = [
+    useRef<THREE.Mesh>(null),
+    useRef<THREE.Mesh>(null),
+    useRef<THREE.Mesh>(null),
+  ]
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    const speed = 2.8
+    refs.forEach((r, i) => {
+      if (!r.current) return
+      r.current.position.z = -56 + ((t * speed + i * 3) % 9)
+      const prog = (r.current.position.z + 56) / 9
+      const mat = r.current.material as THREE.MeshStandardMaterial
+      mat.opacity = 0.18 + prog * 0.28
+    })
+  })
+  return (
+    <>
+      {refs.map((r, i) => (
+        <mesh key={i} ref={r} position={[0, 0.03, -56 + i * 3]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[90, 2.2]} />
+          <meshStandardMaterial color="#aaddee" transparent opacity={0.25} roughness={0.2} />
+        </mesh>
+      ))}
+    </>
+  )
+}
+
+function ThatchKiosk({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {/* Support posts */}
+      {([[-1, -0.8], [1, -0.8], [-1, 0.8], [1, 0.8]] as [number, number][]).map(([x, z], i) => (
+        <mesh key={i} position={[x, 1.3, z]} castShadow>
+          <cylinderGeometry args={[0.07, 0.09, 2.6, 7]} />
+          <meshStandardMaterial color="#7a5218" roughness={0.85} />
+        </mesh>
+      ))}
+      {/* Thatch cone roof — semi-transparent so guests visible from top view */}
+      <mesh position={[0, 2.7, 0]}>
+        <coneGeometry args={[2.1, 0.95, 8]} />
+        <meshStandardMaterial color="#c8a060" roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.52} />
+      </mesh>
+      {/* Fringe */}
+      {Array.from({ length: 10 }, (_, i) => {
+        const angle = (i / 10) * Math.PI * 2
+        return (
+          <mesh key={i} position={[Math.cos(angle) * 1.8, 2.27, Math.sin(angle) * 1.8]}>
+            <boxGeometry args={[0.1, 0.24, 0.07]} />
+            <meshStandardMaterial color="#a07030" roughness={0.9} />
+          </mesh>
+        )
+      })}
+      {/* Round kiosk counter */}
+      <mesh position={[0, 0.52, 0]} castShadow>
+        <cylinderGeometry args={[0.68, 0.68, 1.04, 10]} />
+        <meshStandardMaterial color="#8a5a20" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 1.06, 0]}>
+        <cylinderGeometry args={[0.78, 0.78, 0.09, 10]} />
+        <meshStandardMaterial color="#5a3010" roughness={0.4} metalness={0.05} />
+      </mesh>
+    </group>
+  )
+}
+
+function BeachRestaurant() {
+  return (
+    <group position={[-17, 0, -18]}>
+      {/* Deck floor */}
+      <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[10, 7.5]} />
+        <meshStandardMaterial color="#c8aa7a" roughness={0.72} />
+      </mesh>
+      {/* Deck border */}
+      <mesh position={[0, 0.07, 3.75]}>
+        <boxGeometry args={[10.2, 0.1, 0.14]} />
+        <meshStandardMaterial color="#a08050" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 0.07, -3.75]}>
+        <boxGeometry args={[10.2, 0.1, 0.14]} />
+        <meshStandardMaterial color="#a08050" roughness={0.7} />
+      </mesh>
+
+      {/* 6 roof support posts */}
+      {([[-4, -3], [0, -3], [4, -3], [-4, 3], [0, 3], [4, 3]] as [number, number][]).map(([x, z], i) => (
+        <mesh key={i} position={[x, 1.7, z]} castShadow>
+          <cylinderGeometry args={[0.1, 0.13, 3.4, 8]} />
+          <meshStandardMaterial color="#7a5218" roughness={0.82} />
+        </mesh>
+      ))}
+      {/* Thatch roof — two overlapping layers for thickness */}
+      <mesh position={[0, 3.4, 0]} castShadow>
+        <boxGeometry args={[10.6, 0.18, 8.0]} />
+        <meshStandardMaterial color="#b88c48" roughness={0.9} />
+      </mesh>
+      {/* Thatch texture strips */}
+      {Array.from({ length: 7 }, (_, i) => (
+        <mesh key={i} position={[0, 3.5, -3.0 + i * 1.0]}>
+          <boxGeometry args={[10.4, 0.12, 0.16]} />
+          <meshStandardMaterial color={i % 2 === 0 ? '#a07838' : '#b88c48'} roughness={0.92} />
+        </mesh>
+      ))}
+      {/* Roof fringe front */}
+      {Array.from({ length: 14 }, (_, i) => (
+        <mesh key={i} position={[-4.5 + i * 0.72, 3.3, 4.1]}>
+          <boxGeometry args={[0.14, 0.28, 0.09]} />
+          <meshStandardMaterial color="#9a7030" roughness={0.92} />
+        </mesh>
+      ))}
+      {/* Roof fringe back */}
+      {Array.from({ length: 14 }, (_, i) => (
+        <mesh key={i} position={[-4.5 + i * 0.72, 3.3, -4.1]}>
+          <boxGeometry args={[0.14, 0.28, 0.09]} />
+          <meshStandardMaterial color="#9a7030" roughness={0.92} />
+        </mesh>
+      ))}
+
+      {/* Bar counter along back wall */}
+      <mesh position={[0, 0.57, -3.0]} castShadow>
+        <boxGeometry args={[8.5, 1.14, 0.75]} />
+        <meshStandardMaterial color="#7a4818" roughness={0.65} />
+      </mesh>
+      <mesh position={[0, 1.18, -3.0]}>
+        <boxGeometry args={[8.8, 0.1, 0.98]} />
+        <meshStandardMaterial color="#2a1808" roughness={0.25} metalness={0.1} />
+      </mesh>
+
+      {/* Restaurant tables */}
+      {([[-3, 0.5], [0, 0.5], [3, 0.5], [-1.5, -1.5], [1.5, -1.5]] as [number, number][]).map(([x, z], i) => (
+        <group key={i} position={[x, 0, z]}>
+          <mesh position={[0, 0.72, 0]}>
+            <cylinderGeometry args={[0.52, 0.52, 0.07, 10]} />
+            <meshStandardMaterial color="#d4caa0" roughness={0.6} />
+          </mesh>
+          <mesh position={[0, 0.37, 0]}>
+            <cylinderGeometry args={[0.04, 0.06, 0.74, 6]} />
+            <meshStandardMaterial color="#a08060" roughness={0.75} />
+          </mesh>
+          {/* Chairs */}
+          {([[0.75, 0], [-0.75, 0], [0, 0.75], [0, -0.75]] as [number, number][]).map(([cx, cz], ci) => (
+            <group key={ci} position={[cx, 0, cz]} rotation={[0, Math.atan2(-cx, -cz), 0]}>
+              <mesh position={[0, 0.38, 0]}>
+                <cylinderGeometry args={[0.22, 0.22, 0.06, 8]} />
+                <meshStandardMaterial color="#e8dcc8" roughness={0.7} />
+              </mesh>
+              <mesh position={[0, 0.22, 0]}>
+                <cylinderGeometry args={[0.025, 0.025, 0.44, 6]} />
+                <meshStandardMaterial color="#aaa090" roughness={0.7} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      ))}
+
+      {/* Guests */}
+      <mesh position={[-3, 0.88, 0.5]} castShadow>
+        <capsuleGeometry args={[0.13, 0.3, 4, 8]} />
+        <meshStandardMaterial color="#5a6aaa" roughness={0.7} />
+      </mesh>
+      <mesh position={[-3, 1.35, 0.5]}>
+        <sphereGeometry args={[0.18, 10, 10]} />
+        <meshStandardMaterial color="#c8a07a" roughness={0.65} />
+      </mesh>
+      <mesh position={[0, 0.88, 0.5]} castShadow>
+        <capsuleGeometry args={[0.13, 0.3, 4, 8]} />
+        <meshStandardMaterial color="#aa5a5a" roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 1.35, 0.5]}>
+        <sphereGeometry args={[0.18, 10, 10]} />
+        <meshStandardMaterial color="#d4a08a" roughness={0.65} />
+      </mesh>
+
+      {/* Restaurant sign */}
+      <mesh position={[0, 3.58, -3.02]}>
+        <boxGeometry args={[4.5, 0.55, 0.1]} />
+        <meshStandardMaterial color="#d4a017" metalness={0.5} roughness={0.4} />
+      </mesh>
+      <pointLight position={[0, 2.8, -2]} intensity={5} distance={10} color="#ffcc88" decay={2} />
+    </group>
+  )
+}
+
+function BoundaryWalls() {
+  const stucco = '#f5efe0'
+  const cap    = '#d4c8a0'
+  const wH = 2.6
+  const wT = 0.4
+  const mid = -7  // center of z range: -48 to 35 → center at -6.5
+  const len = 84
+  return (
+    <>
+      {/* East wall */}
+      <mesh position={[31.5, wH / 2, mid]} castShadow receiveShadow>
+        <boxGeometry args={[wT, wH, len]} />
+        <meshStandardMaterial color={stucco} roughness={0.78} />
+      </mesh>
+      <mesh position={[31.5, wH, mid]}>
+        <boxGeometry args={[wT + 0.14, 0.14, len]} />
+        <meshStandardMaterial color={cap} roughness={0.55} />
+      </mesh>
+      {/* West wall */}
+      <mesh position={[-31.5, wH / 2, mid]} castShadow receiveShadow>
+        <boxGeometry args={[wT, wH, len]} />
+        <meshStandardMaterial color={stucco} roughness={0.78} />
+      </mesh>
+      <mesh position={[-31.5, wH, mid]}>
+        <boxGeometry args={[wT + 0.14, 0.14, len]} />
+        <meshStandardMaterial color={cap} roughness={0.55} />
+      </mesh>
+      {/* North wall (behind street/parking) */}
+      <mesh position={[0, wH / 2, 35.5]} castShadow receiveShadow>
+        <boxGeometry args={[63.4, wH, wT]} />
+        <meshStandardMaterial color={stucco} roughness={0.78} />
+      </mesh>
+      <mesh position={[0, wH, 35.5]}>
+        <boxGeometry args={[63.8, 0.14, wT + 0.14]} />
+        <meshStandardMaterial color={cap} roughness={0.55} />
+      </mesh>
+    </>
+  )
+}
+
 function BackgroundCustomer({ position, color, rotation = 0 }: {
   position: [number, number, number]; color: string; rotation?: number
 }) {
@@ -390,9 +614,15 @@ export function BeachClub() {
     <>
       <Ground />
       <Ocean />
+      <WaveAnimation />
       <Pool />
       <Bar />
       <DJBooth />
+      <BeachRestaurant />
+      <BoundaryWalls />
+      {/* Pool-side thatch kiosks — semi-transparent roof */}
+      <ThatchKiosk position={[-11, 0, -8]} />
+      <ThatchKiosk position={[11, 0, -12]} />
 
       {/* Club guests */}
       <BackgroundCustomer position={[14.5, 0, -6]}  color="#3a5a8a" rotation={Math.PI} />

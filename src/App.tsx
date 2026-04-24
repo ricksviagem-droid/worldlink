@@ -35,6 +35,24 @@ const CAM: Record<Exclude<CamMode,'pov'>, { y: number; dz: number; speed: number
 }
 const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide', 'pov']
 
+// ─── Collision ───────────────────────────────────────────────────────────────
+const PLAYER_R = 0.45
+const OBSTACLES = [
+  { x1: -6,   x2: 6,    z1: 20.5, z2: 25.5 }, // Reception building
+  { x1: -6,   x2: 6,    z1: -14.5,z2: -5.5  }, // Pool water
+  { x1: 14.8, x2: 17.2, z1: -10,  z2: 2     }, // Bar counter
+  { x1: -5,   x2: 5,    z1: -22,  z2: -18   }, // DJ booth
+]
+function canMove(x: number, z: number): boolean {
+  if (x < -31 + PLAYER_R || x > 31 - PLAYER_R) return false
+  if (z < -46 + PLAYER_R || z > 34 - PLAYER_R) return false
+  for (const o of OBSTACLES) {
+    if (x > o.x1 - PLAYER_R && x < o.x2 + PLAYER_R &&
+        z > o.z1 - PLAYER_R && z < o.z2 + PLAYER_R) return false
+  }
+  return true
+}
+
 // ─── Camera ─────────────────────────────────────────────────────────────────
 function CameraRig({ target, mode, facingRef, zoomRef, camYawRef }: {
   target: PlayerState
@@ -134,7 +152,9 @@ function LocalPlayer({ position, bodyColor, headColor }: { position: PlayerState
   )
 }
 
-function RemotePlayer({ targetPosition, bodyColor, headColor }: { targetPosition: PlayerState; bodyColor: string; headColor: string }) {
+function RemotePlayer({ targetPosition, bodyColor, headColor, name }: {
+  targetPosition: PlayerState; bodyColor: string; headColor: string; name?: string
+}) {
   const groupRef = useRef<THREE.Group>(null)
   const lp = useRef({ x: targetPosition.x, z: targetPosition.z })
   const movingRef = useRef(false)
@@ -151,6 +171,19 @@ function RemotePlayer({ targetPosition, bodyColor, headColor }: { targetPosition
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
       <CharacterMesh bodyColor={bodyColor} headColor={headColor} movingRef={movingRef} />
+      <Html position={[0, 2.4, 0]} center distanceFactor={12}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          background: 'rgba(10,10,20,0.72)', backdropFilter: 'blur(8px)',
+          color: '#fff', padding: '3px 10px', borderRadius: 20, fontSize: 12,
+          fontFamily: '-apple-system, sans-serif', fontWeight: 600,
+          whiteSpace: 'nowrap', border: '1px solid rgba(76,175,80,0.4)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+        }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4caf50', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 5px #4caf50' }} />
+          {name ?? 'Player'}
+        </div>
+      </Html>
     </group>
   )
 }
@@ -218,7 +251,7 @@ export default function App() {
   const zoomRef     = useRef(1.0)       // camera zoom level
   const camYawRef   = useRef(0)         // camera orbit angle (right-drag / two-finger swipe)
   const pinchStart  = useRef({ dist: 0, zoom: 1.0 })
-  const dragRef     = useRef<{ x: number; yaw: number } | null>(null)
+  const dragRef     = useRef<{ x: number; yaw: number; type: 'orbit' | 'pov' } | null>(null)
   const [position, setPosition] = useState<PlayerState>({ x: 0, z: 0 })
   const [players, setPlayers] = useState<PlayersMap>({})
   const [nearbyNpc, setNearbyNpc] = useState<NpcDef | null>(null)
@@ -431,10 +464,11 @@ export default function App() {
       }
 
       setPosition(prev => {
-        if (e.key === 'w' || e.key === 'ArrowUp')    { facingRef.current = 0;           return { ...prev, z: prev.z - 0.6 } }
-        if (e.key === 's' || e.key === 'ArrowDown')  { facingRef.current = Math.PI;     return { ...prev, z: prev.z + 0.6 } }
-        if (e.key === 'a' || e.key === 'ArrowLeft')  { facingRef.current = -Math.PI/2;  return { ...prev, x: prev.x - 0.6 } }
-        if (e.key === 'd' || e.key === 'ArrowRight') { facingRef.current =  Math.PI/2;  return { ...prev, x: prev.x + 0.6 } }
+        const step = 0.6
+        if (e.key === 'w' || e.key === 'ArrowUp')    { facingRef.current = 0;          const nz = prev.z - step; return canMove(prev.x, nz) ? { ...prev, z: nz } : prev }
+        if (e.key === 's' || e.key === 'ArrowDown')  { facingRef.current = Math.PI;    const nz = prev.z + step; return canMove(prev.x, nz) ? { ...prev, z: nz } : prev }
+        if (e.key === 'a' || e.key === 'ArrowLeft')  { facingRef.current = -Math.PI/2; const nx = prev.x - step; return canMove(nx, prev.z) ? { ...prev, x: nx } : prev }
+        if (e.key === 'd' || e.key === 'ArrowRight') { facingRef.current =  Math.PI/2; const nx = prev.x + step; return canMove(nx, prev.z) ? { ...prev, x: nx } : prev }
         return prev
       })
     }
@@ -493,10 +527,16 @@ export default function App() {
     }, 10000)
   }
 
-  const handleMobileMove = (x: number, z: number) => {
+  const handleMobileMove = (dx: number, dz: number) => {
     if (chatOpenRef.current) return
-    if (Math.abs(x) + Math.abs(z) > 0.01) facingRef.current = Math.atan2(x, -z)
-    setPosition(prev => ({ x: prev.x + x, z: prev.z + z }))
+    if (Math.abs(dx) + Math.abs(dz) > 0.01) facingRef.current = Math.atan2(dx, -dz)
+    setPosition(prev => {
+      const nx = prev.x + dx, nz = prev.z + dz
+      if (canMove(nx, nz)) return { x: nx, z: nz }
+      if (canMove(nx, prev.z)) return { x: nx, z: prev.z }
+      if (canMove(prev.x, nz)) return { x: prev.x, z: nz }
+      return prev
+    })
   }
 
   const handlePinchStart = (e: React.TouchEvent) => {
@@ -517,10 +557,19 @@ export default function App() {
   }
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 2) dragRef.current = { x: e.clientX, yaw: camYawRef.current }
+    if (e.button === 2) {
+      dragRef.current = { x: e.clientX, yaw: camYawRef.current, type: 'orbit' }
+    } else if (e.button === 0 && camMode === 'pov') {
+      dragRef.current = { x: e.clientX, yaw: facingRef.current, type: 'pov' }
+    }
   }
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (dragRef.current) camYawRef.current = dragRef.current.yaw - (e.clientX - dragRef.current.x) * 0.007
+    if (!dragRef.current) return
+    if (dragRef.current.type === 'orbit') {
+      camYawRef.current = dragRef.current.yaw - (e.clientX - dragRef.current.x) * 0.007
+    } else {
+      facingRef.current = dragRef.current.yaw + (e.clientX - dragRef.current.x) * 0.008
+    }
   }
   const handleMouseUp = () => { dragRef.current = null }
 
@@ -773,8 +822,9 @@ export default function App() {
         {camMode !== 'pov' && <LocalPlayer position={position} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} />}
         {Object.entries(players).map(([id, player]) => {
           if (id === myId.current) return null
-          const rOutfit = getOutfit(remoteProfiles[id]?.outfitId ?? 'ocean')
-          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} />
+          const rProfile = remoteProfiles[id]
+          const rOutfit = getOutfit(rProfile?.outfitId ?? 'ocean')
+          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} name={rProfile?.name} />
         })}
       </Canvas>
     </div>
