@@ -869,7 +869,7 @@ function AthleteNPC({ position, rotation = 0, phase = 0 }: {
   })
 
   return (
-    <group ref={groupRef} position={[position[0], BASE_Y, position[2]]} rotation={[0, rotation, 0]}>
+    <group ref={groupRef} position={[position[0], BASE_Y, position[2]]} rotation={[0, rotation, 0]} scale={0.9}>
       <primitive object={cloned.current} />
     </group>
   )
