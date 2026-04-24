@@ -65,6 +65,9 @@ export function CharacterMesh({
     }
   })
 
+  // Eyebrow color: slightly darker than hair
+  const eyebrowColor = hairColor
+
   return (
     <>
       {/* ── LEFT LEG — group pivot at hip (y=0.94) ───────────────────
@@ -73,17 +76,17 @@ export function CharacterMesh({
         {/* Thigh — shorts colour */}
         <mesh position={[0, -0.175, 0]} castShadow>
           <capsuleGeometry args={[0.100, 0.230, 4, 8]} />
-          <meshStandardMaterial color={pantsColor} roughness={0.72} />
+          <meshStandardMaterial color={pantsColor} roughness={0.30} />
         </mesh>
-        {/* Calf — skin (shorts + bare legs look) */}
+        {/* Calf — skin */}
         <mesh position={[0, -0.570, 0]}>
           <capsuleGeometry args={[0.086, 0.295, 4, 8]} />
-          <meshStandardMaterial color={headColor} roughness={0.70} />
+          <meshStandardMaterial color={headColor} roughness={0.28} />
         </mesh>
-        {/* Shoe — box, slightly forward offset */}
-        <mesh position={[0, -0.854, 0.046]}>
-          <boxGeometry args={[0.152, 0.114, 0.268]} />
-          <meshStandardMaterial color="#141414" roughness={0.88} />
+        {/* Shoe — capsule rotated to sit like a shoe */}
+        <mesh position={[0, -0.856, 0.055]} rotation={[Math.PI / 2 - 0.18, 0, 0]}>
+          <capsuleGeometry args={[0.068, 0.14, 4, 8]} />
+          <meshStandardMaterial color="#141414" roughness={0.32} />
         </mesh>
       </group>
 
@@ -91,118 +94,145 @@ export function CharacterMesh({
       <group ref={rightLegRef} position={[0.115, 0.94, 0]}>
         <mesh position={[0, -0.175, 0]} castShadow>
           <capsuleGeometry args={[0.100, 0.230, 4, 8]} />
-          <meshStandardMaterial color={pantsColor} roughness={0.72} />
+          <meshStandardMaterial color={pantsColor} roughness={0.30} />
         </mesh>
         <mesh position={[0, -0.570, 0]}>
           <capsuleGeometry args={[0.086, 0.295, 4, 8]} />
-          <meshStandardMaterial color={headColor} roughness={0.70} />
+          <meshStandardMaterial color={headColor} roughness={0.28} />
         </mesh>
-        <mesh position={[0, -0.854, 0.046]}>
-          <boxGeometry args={[0.152, 0.114, 0.268]} />
-          <meshStandardMaterial color="#141414" roughness={0.88} />
+        <mesh position={[0, -0.856, 0.055]} rotation={[Math.PI / 2 - 0.18, 0, 0]}>
+          <capsuleGeometry args={[0.068, 0.14, 4, 8]} />
+          <meshStandardMaterial color="#141414" roughness={0.32} />
         </mesh>
       </group>
 
       {/* ── TORSO / SHIRT ─────────────────────────────────────────── */}
       <mesh position={[0, 1.195, 0]} castShadow>
-        <capsuleGeometry args={[0.198, 0.440, 6, 12]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.62} />
+        <capsuleGeometry args={[0.21, 0.46, 8, 14]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.35} />
       </mesh>
 
       {/* ── LEFT ARM — group pivot at shoulder (y=1.34) ───────────── */}
       <group ref={leftArmRef} position={[-0.296, 1.340, 0]}>
         {/* Sleeve — shirt colour */}
         <mesh position={[0, -0.108, 0]}>
-          <capsuleGeometry args={[0.070, 0.176, 4, 8]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.65} />
+          <capsuleGeometry args={[0.070, 0.176, 6, 10]} />
+          <meshStandardMaterial color={bodyColor} roughness={0.35} />
         </mesh>
         {/* Forearm — skin */}
         <mesh position={[0, -0.338, 0]}>
-          <capsuleGeometry args={[0.057, 0.198, 4, 8]} />
-          <meshStandardMaterial color={headColor} roughness={0.68} />
+          <capsuleGeometry args={[0.057, 0.198, 6, 10]} />
+          <meshStandardMaterial color={headColor} roughness={0.28} />
         </mesh>
         {/* Hand */}
         <mesh position={[0, -0.506, 0]}>
           <sphereGeometry args={[0.062, 9, 7]} />
-          <meshStandardMaterial color={headColor} roughness={0.65} />
+          <meshStandardMaterial color={headColor} roughness={0.30} />
         </mesh>
       </group>
 
       {/* ── RIGHT ARM ─────────────────────────────────────────────── */}
       <group ref={rightArmRef} position={[0.296, 1.340, 0]}>
         <mesh position={[0, -0.108, 0]}>
-          <capsuleGeometry args={[0.070, 0.176, 4, 8]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.65} />
+          <capsuleGeometry args={[0.070, 0.176, 6, 10]} />
+          <meshStandardMaterial color={bodyColor} roughness={0.35} />
         </mesh>
         <mesh position={[0, -0.338, 0]}>
-          <capsuleGeometry args={[0.057, 0.198, 4, 8]} />
-          <meshStandardMaterial color={headColor} roughness={0.68} />
+          <capsuleGeometry args={[0.057, 0.198, 6, 10]} />
+          <meshStandardMaterial color={headColor} roughness={0.28} />
         </mesh>
         <mesh position={[0, -0.506, 0]}>
           <sphereGeometry args={[0.062, 9, 7]} />
-          <meshStandardMaterial color={headColor} roughness={0.65} />
+          <meshStandardMaterial color={headColor} roughness={0.30} />
         </mesh>
       </group>
 
       {/* ── NECK ──────────────────────────────────────────────────── */}
       <mesh position={[0, 1.460, 0]}>
-        <cylinderGeometry args={[0.074, 0.092, 0.132, 8]} />
-        <meshStandardMaterial color={headColor} roughness={0.65} />
+        <cylinderGeometry args={[0.072, 0.1, 0.14, 10]} />
+        <meshStandardMaterial color={headColor} roughness={0.28} />
       </mesh>
 
       {/* ── HEAD GROUP — position animated in useFrame ───────────── */}
-      <group ref={headGrpRef} position={[0, 1.615, 0]}>
+      <group ref={headGrpRef} position={[0, 1.64, 0]}>
 
-        {/* Face */}
+        {/* Face — bigger, rounder Sims head */}
         <mesh castShadow>
-          <sphereGeometry args={[0.215, 18, 14]} />
-          <meshStandardMaterial color={headColor} roughness={0.50} />
+          <sphereGeometry args={[0.26, 20, 16]} />
+          <meshStandardMaterial color={headColor} roughness={0.25} />
         </mesh>
 
-        {/* Hair — covers crown + back, face shows through at front */}
-        <mesh position={[0, 0.096, -0.020]}>
-          <sphereGeometry args={[0.200, 14, 10]} />
-          <meshStandardMaterial color={hairColor} roughness={0.88} />
+        {/* Hair — main dome covering crown and back */}
+        <mesh position={[0, 0.11, -0.018]}>
+          <sphereGeometry args={[0.245, 16, 12]} />
+          <meshStandardMaterial color={hairColor} roughness={0.38} />
         </mesh>
 
-        {/* Eye whites */}
-        <mesh position={[-0.080, 0.050, 0.177]}>
-          <sphereGeometry args={[0.051, 9, 7]} />
-          <meshStandardMaterial color="#f3f3f3" roughness={0.80} />
-        </mesh>
-        <mesh position={[ 0.080, 0.050, 0.177]}>
-          <sphereGeometry args={[0.051, 9, 7]} />
-          <meshStandardMaterial color="#f3f3f3" roughness={0.80} />
+        {/* Hair — front fringe overhang */}
+        <mesh position={[0, 0.04, 0.12]} scale={[1.08, 0.72, 0.82]}>
+          <sphereGeometry args={[0.22, 10, 8]} />
+          <meshStandardMaterial color={hairColor} roughness={0.40} />
         </mesh>
 
-        {/* Iris */}
-        <mesh position={[-0.080, 0.048, 0.190]}>
-          <sphereGeometry args={[0.040, 9, 7]} />
-          <meshStandardMaterial color="#3a6a8a" roughness={0.85} />
-        </mesh>
-        <mesh position={[ 0.080, 0.048, 0.190]}>
-          <sphereGeometry args={[0.040, 9, 7]} />
-          <meshStandardMaterial color="#3a6a8a" roughness={0.85} />
+        {/* Nose — subtle small sphere */}
+        <mesh position={[0, -0.02, 0.205]}>
+          <sphereGeometry args={[0.028, 6, 5]} />
+          <meshStandardMaterial color={headColor} roughness={0.25} />
         </mesh>
 
-        {/* Pupils */}
-        <mesh position={[-0.080, 0.047, 0.193]}>
-          <sphereGeometry args={[0.033, 9, 7]} />
-          <meshStandardMaterial color="#0a0a14" roughness={0.9} />
+        {/* Eye whites — left */}
+        <mesh position={[-0.088, 0.054, 0.202]}>
+          <sphereGeometry args={[0.056, 10, 8]} />
+          <meshStandardMaterial color="#f5f5f5" roughness={0.20} />
         </mesh>
-        <mesh position={[ 0.080, 0.047, 0.193]}>
-          <sphereGeometry args={[0.033, 9, 7]} />
-          <meshStandardMaterial color="#0a0a14" roughness={0.9} />
+        {/* Eye whites — right */}
+        <mesh position={[ 0.088, 0.054, 0.202]}>
+          <sphereGeometry args={[0.056, 10, 8]} />
+          <meshStandardMaterial color="#f5f5f5" roughness={0.20} />
         </mesh>
 
-        {/* Eye shine — tiny emissive dot gives life */}
-        <mesh position={[-0.072, 0.060, 0.202]}>
+        {/* Iris — left */}
+        <mesh position={[-0.088, 0.052, 0.218]}>
+          <sphereGeometry args={[0.044, 10, 8]} />
+          <meshStandardMaterial color="#3a6a8a" roughness={0.30} />
+        </mesh>
+        {/* Iris — right */}
+        <mesh position={[ 0.088, 0.052, 0.218]}>
+          <sphereGeometry args={[0.044, 10, 8]} />
+          <meshStandardMaterial color="#3a6a8a" roughness={0.30} />
+        </mesh>
+
+        {/* Pupils — left */}
+        <mesh position={[-0.088, 0.051, 0.224]}>
+          <sphereGeometry args={[0.028, 9, 7]} />
+          <meshStandardMaterial color="#080810" roughness={0.15} />
+        </mesh>
+        {/* Pupils — right */}
+        <mesh position={[ 0.088, 0.051, 0.224]}>
+          <sphereGeometry args={[0.028, 9, 7]} />
+          <meshStandardMaterial color="#080810" roughness={0.15} />
+        </mesh>
+
+        {/* Eye shine — tiny emissive dot gives life — left */}
+        <mesh position={[-0.079, 0.064, 0.232]}>
           <sphereGeometry args={[0.009, 6, 5]} />
-          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.7} roughness={0.1} />
+          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.8} roughness={0.05} />
         </mesh>
-        <mesh position={[ 0.072, 0.060, 0.202]}>
+        {/* Eye shine — right */}
+        <mesh position={[ 0.079, 0.064, 0.232]}>
           <sphereGeometry args={[0.009, 6, 5]} />
-          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.7} roughness={0.1} />
+          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.8} roughness={0.05} />
+        </mesh>
+
+        {/* Eyebrow — thin flat box above left eye */}
+        <mesh position={[-0.088, 0.118, 0.212]} rotation={[0.22, 0, 0.08]}>
+          <boxGeometry args={[0.072, 0.014, 0.018]} />
+          <meshStandardMaterial color={eyebrowColor} roughness={0.40} />
+        </mesh>
+        {/* Eyebrow — right eye */}
+        <mesh position={[ 0.088, 0.118, 0.212]} rotation={[0.22, 0, -0.08]}>
+          <boxGeometry args={[0.072, 0.014, 0.018]} />
+          <meshStandardMaterial color={eyebrowColor} roughness={0.40} />
         </mesh>
 
       </group>

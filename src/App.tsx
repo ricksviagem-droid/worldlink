@@ -134,8 +134,8 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
   return null
 }
 
-// ─── Day / Night cycle ───────────────────────────────────────────────────────
-function DayNight() {
+// ─── Day / Night cycle — REMOVED, always daytime now ────────────────────────
+function _DayNight_unused() {
   const { scene } = useThree()
   const sunRef  = useRef<THREE.DirectionalLight>(null)
   const ambRef  = useRef<THREE.AmbientLight>(null)
@@ -198,7 +198,7 @@ function DayNight() {
   )
 }
 
-// ─── Sky — stars, sun, moon ──────────────────────────────────────────────────
+// ─── Sky / stars — REMOVED, always daytime now ──────────────────────────────
 function makeStarBelt(count: number): Float32Array {
   const a = new Float32Array(count * 3)
   for (let i = 0; i < count; i++) {
@@ -212,7 +212,7 @@ function makeStarBelt(count: number): Float32Array {
   return a
 }
 
-function Sky() {
+function _Sky_unused() {
   const sunGrp     = useRef<THREE.Group>(null)
   const moonGrp    = useRef<THREE.Group>(null)
   const starsSmRef = useRef<THREE.Points>(null)
@@ -1501,16 +1501,22 @@ export default function App() {
         />
       )}
 
-      <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }}>
-        <fog attach="fog" args={['#f4a460', 45, 95]} />
-        <DayNight />
-        <Sky />
-        {/* Pool area — cool aqua fill */}
-        <pointLight position={[0, 4, -10]} intensity={6} distance={20} color="#40e0d0" decay={2} />
-        {/* Bar — warm amber */}
-        <pointLight position={[16, 4, -4]} intensity={5} distance={14} color="#ff9944" decay={2} />
-        {/* Reception arch — soft white */}
-        <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
+      <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }} scene={{ background: new THREE.Color('#5ec8f0') }}>
+        <fog attach="fog" args={['#a8dff5', 55, 115]} />
+        {/* Fixed bright sunny day */}
+        <ambientLight intensity={1.8} color="#fff8ee" />
+        <directionalLight position={[18, 38, 14]} intensity={4.5} color="#fff5d0" castShadow
+          shadow-mapSize={[2048, 2048]} shadow-camera-far={120}
+          shadow-camera-left={-40} shadow-camera-right={40}
+          shadow-camera-top={40} shadow-camera-bottom={-40} />
+        {/* Sky fill — soft blue bounce */}
+        <directionalLight position={[-12, 20, -10]} intensity={1.2} color="#c8e8ff" />
+        {/* Pool area */}
+        <pointLight position={[0, 4, -10]} intensity={8} distance={22} color="#40e8d8" decay={2} />
+        {/* Bar */}
+        <pointLight position={[16, 4, -4]} intensity={6} distance={16} color="#ffb055" decay={2} />
+        {/* Reception */}
+        <pointLight position={[0, 5, 17]} intensity={5} distance={18} color="#fff0c0" decay={2} />
         <DJLights />
 
         <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} hasInputRef={hasInputRef} />
