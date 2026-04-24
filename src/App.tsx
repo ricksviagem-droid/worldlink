@@ -90,8 +90,8 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
       // Smooth look-at target so turning feels fluid
       const lx = cur.x + Math.sin(angle) * 8
       const lz = cur.z - Math.cos(angle) * 8
-      smoothLook.current.x += (lx - smoothLook.current.x) * Math.min(1, 16 * delta)
-      smoothLook.current.z += (lz - smoothLook.current.z) * Math.min(1, 16 * delta)
+      smoothLook.current.x += (lx - smoothLook.current.x) * Math.min(1, 6 * delta)
+      smoothLook.current.z += (lz - smoothLook.current.z) * Math.min(1, 6 * delta)
       camera.lookAt(smoothLook.current.x, 1.4, smoothLook.current.z)
       const povFov = 75 + Math.min(speed / 5.2, 1) * 10
       cam.fov += (povFov / zoom - cam.fov) * Math.min(1, 6 * delta)
@@ -159,7 +159,7 @@ function DJLights() {
 // ─── Movement System (runs inside Canvas via useFrame) ───────────────────────
 function MovementSystem({
   keysRef, mobileInputRef, velocityRef, positionRef, facingRef, velMagRef,
-  camYawRef, hasInputRef, setPosition, chatOpenRef,
+  camYawRef, hasInputRef, camModeRef, setPosition, chatOpenRef,
 }: {
   keysRef: { current: Record<string, boolean> }
   mobileInputRef: { current: { x: number; z: number } }
@@ -169,6 +169,7 @@ function MovementSystem({
   velMagRef: { current: number }
   camYawRef: { current: number }
   hasInputRef: { current: boolean }
+  camModeRef: { current: CamMode }
   setPosition: (p: PlayerState) => void
   chatOpenRef: React.RefObject<boolean>
 }) {
@@ -176,7 +177,8 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 5.2, ACCEL = 20, DECEL = 16, TURN_SPD = Math.PI * 1.5
+    const MAX_SPEED = 5.2, ACCEL = 20, DECEL = 16
+    const TURN_SPD = camModeRef.current === 'pov' ? Math.PI * 0.4 : Math.PI * 1.5
 
     // Raw screen-space input (up = -iz, right = +ix)
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
@@ -460,6 +462,8 @@ export default function App() {
   const mobileInputRef = useRef({ x: 0, z: 0 })
   const velMagRef      = useRef(0)
   const hasInputRef    = useRef(false)
+  const camModeRef     = useRef<CamMode>(camMode)
+  camModeRef.current   = camMode
 
   // Profile
   const [myProfile, setMyProfile] = useState<PlayerProfile | null>(() => {
@@ -620,7 +624,7 @@ export default function App() {
   useEffect(() => {
     if (camMode !== 'pov') return
     const onMove = (e: MouseEvent) => {
-      if (isLockedRef.current) facingRef.current += e.movementX * 0.003
+      if (isLockedRef.current) facingRef.current += e.movementX * 0.0012
     }
     document.addEventListener('mousemove', onMove)
     return () => document.removeEventListener('mousemove', onMove)
@@ -786,7 +790,7 @@ export default function App() {
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!dragRef.current) return
     if (dragRef.current.type === 'orbit') {
-      camYawRef.current = dragRef.current.yaw - (e.clientX - dragRef.current.x) * 0.007
+      camYawRef.current = dragRef.current.yaw - (e.clientX - dragRef.current.x) * 0.003
     } else if (!isLockedRef.current) {
       facingRef.current = dragRef.current.yaw + (e.clientX - dragRef.current.x) * 0.008
     }
@@ -1069,7 +1073,7 @@ export default function App() {
         <DJLights />
 
         <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} hasInputRef={hasInputRef} />
-        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} hasInputRef={hasInputRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
+        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} hasInputRef={hasInputRef} camModeRef={camModeRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
         <BeachClub />
         <ReceptionArea />
         <ValentinaBuggy />
