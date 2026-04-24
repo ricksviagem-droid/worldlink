@@ -197,6 +197,136 @@ function DayNight() {
   )
 }
 
+// ─── Sky — stars, sun, moon ──────────────────────────────────────────────────
+function makeStarBelt(count: number): Float32Array {
+  const a = new Float32Array(count * 3)
+  for (let i = 0; i < count; i++) {
+    const theta = Math.random() * Math.PI * 2
+    const cosP  = Math.random() * 0.92 + 0.08
+    const r     = 175 + Math.random() * 15
+    a[i*3]   = r * Math.sqrt(1 - cosP * cosP) * Math.cos(theta)
+    a[i*3+1] = Math.max(6, r * cosP)
+    a[i*3+2] = r * Math.sqrt(1 - cosP * cosP) * Math.sin(theta) - 20
+  }
+  return a
+}
+
+function Sky() {
+  const sunGrp     = useRef<THREE.Group>(null)
+  const moonGrp    = useRef<THREE.Group>(null)
+  const starsSmRef = useRef<THREE.Points>(null)
+  const starsMdRef = useRef<THREE.Points>(null)
+  const starsLgRef = useRef<THREE.Points>(null)
+  const sunMat     = useRef<THREE.MeshStandardMaterial>(null)
+  const moonMat    = useRef<THREE.MeshStandardMaterial>(null)
+
+  const starsSm = useRef(makeStarBelt(520))
+  const starsMd = useRef(makeStarBelt(190))
+  const starsLg = useRef(makeStarBelt(85))
+
+  useFrame(({ clock }) => {
+    const t      = (clock.elapsedTime / 300) % 1
+    const arc    = t * Math.PI * 2
+    const R      = 145
+
+    // Night envelope (same keyframes as DayNight)
+    let night = 0
+    if      (t >= 0.42 && t < 0.52) night = (t - 0.42) / 0.10
+    else if (t >= 0.52 && t < 0.78) night = 1.0
+    else if (t >= 0.78 && t < 0.90) night = 1 - (t - 0.78) / 0.12
+
+    // Star layers with gentle global twinkle
+    const twinkle = 0.82 + Math.sin(clock.elapsedTime * 1.8) * 0.18
+    for (const ref of [starsSmRef, starsMdRef, starsLgRef]) {
+      if (ref.current) (ref.current.material as THREE.PointsMaterial).opacity = night * twinkle
+    }
+
+    // Sun arc
+    if (sunGrp.current) {
+      sunGrp.current.position.set(
+        Math.cos(arc) * R * 0.52,
+        Math.sin(arc) * R * 0.60 + 5,
+        -60,
+      )
+    }
+    if (sunMat.current) {
+      const sunset = Math.max(0, 1 - Math.abs(t - 0.30) / 0.13)
+      sunMat.current.emissive.setHSL(0.12 - sunset * 0.08, 1, 0.6)
+      sunMat.current.emissiveIntensity = 2.2 + (1 - sunset) * 1.8
+    }
+
+    // Moon arc (opposite side)
+    if (moonGrp.current) {
+      const ma = arc + Math.PI
+      moonGrp.current.position.set(
+        Math.cos(ma) * R * 0.52,
+        Math.sin(ma) * R * 0.60 + 5,
+        -60,
+      )
+    }
+    if (moonMat.current) moonMat.current.emissiveIntensity = 0.85 * night
+  })
+
+  return (
+    <>
+      {/* Stars — 3 layers of different sizes for depth */}
+      {([
+        [starsSmRef, starsSm.current, 0.26, '#ffffff'],
+        [starsMdRef, starsMd.current, 0.48, '#ddeeff'],
+        [starsLgRef, starsLg.current, 0.78, '#fff8e0'],
+      ] as const).map(([ref, arr, size, color], i) => (
+        <points key={i} ref={ref as React.RefObject<THREE.Points>} frustumCulled={false}>
+          <bufferGeometry>
+            <bufferAttribute attach="attributes-position" args={[arr, 3]} />
+          </bufferGeometry>
+          <pointsMaterial
+            color={color} size={size} transparent opacity={0}
+            sizeAttenuation depthWrite={false} fog={false}
+          />
+        </points>
+      ))}
+
+      {/* Sun */}
+      <group ref={sunGrp}>
+        <mesh>
+          <sphereGeometry args={[5.2, 14, 14]} />
+          <meshStandardMaterial ref={sunMat}
+            color="#fff7d0" emissive="#ffdd44" emissiveIntensity={3}
+            roughness={1} fog={false}
+          />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[9.5, 10, 10]} />
+          <meshStandardMaterial
+            color="#ffaa00" emissive="#ff8800" emissiveIntensity={0.35}
+            transparent opacity={0.13} depthWrite={false} fog={false}
+            side={THREE.BackSide}
+          />
+        </mesh>
+      </group>
+
+      {/* Moon */}
+      <group ref={moonGrp}>
+        <mesh>
+          <sphereGeometry args={[3.6, 14, 14]} />
+          <meshStandardMaterial ref={moonMat}
+            color="#ddeeff" emissive="#aabbdd" emissiveIntensity={0.85}
+            roughness={1} fog={false}
+          />
+        </mesh>
+        <mesh>
+          <sphereGeometry args={[6.2, 10, 10]} />
+          <meshStandardMaterial
+            color="#6688bb" emissive="#5577aa" emissiveIntensity={0.14}
+            transparent opacity={0.10} depthWrite={false} fog={false}
+            side={THREE.BackSide}
+          />
+        </mesh>
+      </group>
+    </>
+  )
+}
+
 // ─── Disco lights ────────────────────────────────────────────────────────────
 function DJLights() {
   const refs = useRef<(THREE.PointLight | null)[]>([null, null, null, null, null])
@@ -1289,6 +1419,7 @@ export default function App() {
       <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }}>
         <fog attach="fog" args={['#f4a460', 45, 95]} />
         <DayNight />
+        <Sky />
         {/* Pool area — cool aqua fill */}
         <pointLight position={[0, 4, -10]} intensity={6} distance={20} color="#40e0d0" decay={2} />
         {/* Bar — warm amber */}
