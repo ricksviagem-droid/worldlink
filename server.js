@@ -28,6 +28,14 @@ const NPC_PROMPTS = {
   waiter: `You are the Waiter at Casa Blanca Beach Club. Friendly, professional, observant. You adapt to whoever you're talking to. You know the menu, the drinks, the regulars. Warm but not over the top. 2-3 sentences max.`,
 }
 
+const CUSTOMER_PROMPTS = {
+  c1: `You are Carlos, a beach club customer at Casa Blanca. You've been waiting 10 minutes for your Mojito. You're polite but getting impatient. If the waiter is friendly and takes your order properly, you'll be satisfied. If they ignore you or are rude, you'll complain and leave. 2-3 sentences max.`,
+  c2: `You are Sofia, a Brazilian influencer visiting Casa Blanca. You want a Caesar salad with no croutons and extra dressing, plus sparkling water. You have high standards but reward good service with enthusiasm. 2-3 sentences max.`,
+  c3: `You are Jake, an American tourist at Casa Blanca for the first time. You want drink recommendations and have questions about the menu. Very friendly and talkative. 2-3 sentences max.`,
+  c4: `You are Marina, a regular guest at Casa Blanca. You want still water and a sunbed towel replacement. Calm and direct. You appreciate efficiency — small talk is fine but you value your time. 2-3 sentences max.`,
+  c5: `You are Pedro, an executive at Casa Blanca for a business lunch. You need a bottle of champagne brought quickly, and you're judging the service carefully. Professional, exacting, but fair. 2-3 sentences max.`,
+}
+
 app.post('/api/chat', async (req, res) => {
   const { npcId, messages } = req.body
 
@@ -105,6 +113,51 @@ app.post('/api/transcribe', async (req, res) => {
     res.json({ text: result.text })
   } catch {
     res.status(500).json({ error: 'Transcription failed' })
+  }
+})
+
+app.post('/api/customer-chat', async (req, res) => {
+  const { customerId, messages } = req.body
+  if (!openai) return res.json({ reply: "One moment please, I'll be right with you." })
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: CUSTOMER_PROMPTS[customerId] || CUSTOMER_PROMPTS.c1 },
+        ...messages,
+      ],
+      max_tokens: 100,
+      temperature: 0.85,
+    })
+    res.json({ reply: completion.choices[0].message.content || '' })
+  } catch {
+    res.status(500).json({ reply: "Sorry, give me a moment." })
+  }
+})
+
+app.post('/api/report', async (req, res) => {
+  const { served, missed, exchanges, shiftDuration, quitEarly } = req.body
+  const total = served + missed
+  const passed = served >= Math.ceil(total * 0.6) && !quitEarly
+  if (!openai) return res.json({ report: passed ? "Good trial shift, my friend!" : "Need more practice, come back tomorrow.", passed })
+  const prompt = `You are Rick, Brazilian owner of Casa Blanca Beach Club. You just observed a new waiter's 3-minute trial shift. Stats:
+- Customers served: ${served} out of ${total}
+- Customers who left unhappy: ${missed}
+- Total customer conversations: ${exchanges}
+- Quit early: ${quitEarly ? 'yes' : 'no'}
+- Result: ${passed ? 'PASSED' : 'FAILED'}
+
+Write a 3-4 sentence performance review in Rick's warm, honest Brazilian style. Be specific about what was good and what needs work. End by saying if they're hired or need another chance.`
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 200,
+      temperature: 0.75,
+    })
+    res.json({ report: completion.choices[0].message.content?.trim() || '', passed })
+  } catch {
+    res.status(500).json({ report: 'Great effort on the trial!', passed })
   }
 })
 

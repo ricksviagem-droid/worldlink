@@ -11,6 +11,8 @@ import { audio } from './audio'
 import { CharacterMesh } from './CharacterMesh'
 import { AICustomers, CUSTOMER_DEFS, SERVE_DISTANCE, type CustomerNeed } from './AICustomers'
 import { MissionPanel } from './MissionPanel'
+import { CustomerChat } from './CustomerChat'
+import { ShiftReport } from './ShiftReport'
 import { ReceptionArea } from './ReceptionArea'
 import { ValentinaBuggy } from './ValentinaBuggy'
 import { ProfileSetup } from './ProfileSetup'
@@ -222,6 +224,53 @@ export default function App() {
   ) as Record<string, CustomerNeed>
   const [customerNeeds, setCustomerNeeds] = useState<Record<string, CustomerNeed>>(initNeeds)
 
+  // Work shift
+  type ShiftPhase = 'idle' | 'active' | 'ended'
+  const [shiftPhase, setShiftPhase] = useState<ShiftPhase>('idle')
+  const [shiftTimeLeft, setShiftTimeLeft] = useState(180) // 3 min
+  const [shiftServed, setShiftServed] = useState(0)
+  const [shiftMissed, setShiftMissed] = useState(0)
+  const [shiftExchanges, setShiftExchanges] = useState(0)
+  const [showReport, setShowReport] = useState(false)
+  const [activeCustomerChat, setActiveCustomerChat] = useState<string | null>(null)
+  const shiftStartTime = useRef(0)
+  const shiftTimerRef = useRef<ReturnType<typeof setInterval>>()
+
+  const startShift = () => {
+    setShiftPhase('active')
+    setShiftTimeLeft(180)
+    setShiftServed(0)
+    setShiftMissed(0)
+    setShiftExchanges(0)
+    shiftStartTime.current = Date.now()
+    shiftTimerRef.current = setInterval(() => {
+      setShiftTimeLeft(prev => {
+        if (prev <= 1) { endShift(false); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  const endShift = (quitEarly: boolean) => {
+    clearInterval(shiftTimerRef.current)
+    setShiftPhase('ended')
+    // Store quitEarly for report via ref so callback captures fresh value
+    _quitEarlyRef.current = quitEarly
+  }
+
+  const _quitEarlyRef = useRef(false)
+
+  const handlePatienceOut = (customerId: string) => {
+    if (shiftPhase !== 'active') return
+    setCustomerNeeds(prev => ({ ...prev, [customerId]: 'left' }))
+    setShiftMissed(prev => prev + 1)
+    // Reset after 6s
+    const needs: CustomerNeed[] = ['drink', 'towel', 'menu']
+    setTimeout(() => {
+      setCustomerNeeds(prev => ({ ...prev, [customerId]: needs[Math.floor(Math.random() * needs.length)] }))
+    }, 6000)
+  }
+
   // Socket
   useEffect(() => {
     const onConnect = () => {
@@ -359,20 +408,46 @@ export default function App() {
   }
 
   const handleServeCustomer = (customerId: string) => {
-    setCustomerNeeds(prev => ({ ...prev, [customerId]: 'happy' }))
-    setXp(prev => prev + 50)
+    if (shiftPhase === 'active') {
+      // During shift: open AI chat with customer
+      setActiveCustomerChat(customerId)
+      audio.playOpen()
+    } else {
+      // Outside shift: instant serve (existing behaviour)
+      setCustomerNeeds(prev => ({ ...prev, [customerId]: 'happy' }))
+      setXp(prev => prev + 50)
+      setServedTotal(prev => prev + 1)
+      setJustServed(true)
+      audio.playSend()
+      setTimeout(() => setJustServed(false), 1000)
+      const needs: CustomerNeed[] = ['drink', 'towel', 'menu']
+      setTimeout(() => {
+        setCustomerNeeds(prev => ({
+          ...prev,
+          [customerId]: needs[Math.floor(Math.random() * needs.length)],
+        }))
+      }, 8000)
+    }
+  }
+
+  const handleCustomerChatClose = (exchangeCount: number) => {
+    const id = activeCustomerChat!
+    setActiveCustomerChat(null)
+    setCustomerNeeds(prev => ({ ...prev, [id]: 'happy' }))
+    setXp(prev => prev + 60)
     setServedTotal(prev => prev + 1)
     setJustServed(true)
+    setShiftServed(prev => prev + 1)
+    setShiftExchanges(prev => prev + exchangeCount)
     audio.playSend()
     setTimeout(() => setJustServed(false), 1000)
-    // After 8s customer has new need
     const needs: CustomerNeed[] = ['drink', 'towel', 'menu']
     setTimeout(() => {
       setCustomerNeeds(prev => ({
         ...prev,
-        [customerId]: needs[Math.floor(Math.random() * needs.length)],
+        [id]: needs[Math.floor(Math.random() * needs.length)],
       }))
-    }, 8000)
+    }, 10000)
   }
 
   const handleMobileMove = (x: number, z: number) => {
@@ -465,6 +540,25 @@ export default function App() {
         }}>{notification}</div>
       )}
 
+      {/* Customer chat (during shift) */}
+      {activeCustomerChat && (
+        <CustomerChat customerId={activeCustomerChat} onClose={handleCustomerChatClose} />
+      )}
+
+      {/* Shift performance report */}
+      {showReport && shiftPhase === 'ended' && (
+        <ShiftReport
+          stats={{
+            served: shiftServed,
+            missed: shiftMissed,
+            exchanges: shiftExchanges,
+            shiftDuration: 180 - shiftTimeLeft,
+            quitEarly: _quitEarlyRef.current,
+          }}
+          onClose={() => { setShowReport(false); setShiftPhase('idle') }}
+        />
+      )}
+
       {/* Chat panel */}
       {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
 
@@ -481,8 +575,15 @@ export default function App() {
         />
       )}
 
-      {/* Mission panel */}
-      <MissionPanel xp={xp} servedTotal={servedTotal} justServed={justServed} />
+      {/* Mission / shift panel */}
+      <MissionPanel
+        xp={xp} servedTotal={servedTotal} justServed={justServed}
+        shiftPhase={shiftPhase} shiftTimeLeft={shiftTimeLeft}
+        shiftServed={shiftServed} shiftMissed={shiftMissed}
+        onStartShift={startShift}
+        onEndShift={() => { endShift(true); setShowReport(true) }}
+        onShowReport={() => setShowReport(true)}
+      />
 
       {/* Mobile controls */}
       {isMobile && (
@@ -521,7 +622,11 @@ export default function App() {
           <NPCCharacter key={npc.id} npc={npc} nearby={nearbyNpc?.id === npc.id} />
         ))}
 
-        <AICustomers needs={customerNeeds} nearbyId={nearbyCustomerId} />
+        <AICustomers
+          needs={customerNeeds} nearbyId={nearbyCustomerId}
+          missionActive={shiftPhase === 'active'}
+          onPatienceOut={handlePatienceOut}
+        />
         <LocalPlayer position={position} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} />
         {Object.entries(players).map(([id, player]) => {
           if (id === myId.current) return null
