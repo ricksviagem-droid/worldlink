@@ -54,8 +54,8 @@ function canMove(x: number, z: number): boolean {
 }
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
-function CameraRig({ target, mode, facingRef, zoomRef, camYawRef }: {
-  target: PlayerState
+function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef }: {
+  targetRef: { current: { x: number; z: number } }
   mode: CamMode
   facingRef: React.RefObject<number>
   zoomRef: React.RefObject<number>
@@ -63,27 +63,25 @@ function CameraRig({ target, mode, facingRef, zoomRef, camYawRef }: {
 }) {
   const { camera } = useThree()
   const cam = camera as THREE.PerspectiveCamera
-  const t = useRef(target); t.current = target
   const m = useRef(mode); m.current = mode
-  // Smoothed player position — eliminates camera shake on discrete key steps
-  const smooth = useRef({ x: target.x, z: target.z })
+  const smooth = useRef({ x: targetRef.current.x, z: targetRef.current.z })
 
   useFrame(() => {
     const zoom = zoomRef.current ?? 1.0
+    const cur = targetRef.current
 
-    // Double-smooth the target so camera never jerks on discrete moves
-    smooth.current.x += (t.current.x - smooth.current.x) * 0.10
-    smooth.current.z += (t.current.z - smooth.current.z) * 0.10
+    smooth.current.x += (cur.x - smooth.current.x) * 0.12
+    smooth.current.z += (cur.z - smooth.current.z) * 0.12
 
     if (m.current === 'pov') {
       const angle = facingRef.current ?? 0
-      camera.position.x += (t.current.x - camera.position.x) * 0.22
+      camera.position.x += (cur.x - camera.position.x) * 0.22
       camera.position.y += (1.5  - camera.position.y) * 0.22
-      camera.position.z += (t.current.z - camera.position.z) * 0.22
+      camera.position.z += (cur.z - camera.position.z) * 0.22
       camera.lookAt(
-        t.current.x + Math.sin(angle) * 8,
+        cur.x + Math.sin(angle) * 8,
         1.4,
-        t.current.z - Math.cos(angle) * 8,
+        cur.z - Math.cos(angle) * 8,
       )
       cam.fov += (80 / zoom - cam.fov) * 0.12
       cam.updateProjectionMatrix()
@@ -132,23 +130,95 @@ function DJLights() {
   )
 }
 
-// ─── Players ─────────────────────────────────────────────────────────────────
-function LocalPlayer({ position, bodyColor, headColor, hairColor, pantsColor }: {
-  position: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string
+// ─── Movement System (runs inside Canvas via useFrame) ───────────────────────
+function MovementSystem({
+  keysRef, mobileInputRef, velocityRef, positionRef, facingRef, velMagRef, setPosition, chatOpenRef,
+}: {
+  keysRef: { current: Record<string, boolean> }
+  mobileInputRef: { current: { x: number; z: number } }
+  velocityRef: { current: { x: number; z: number } }
+  positionRef: { current: { x: number; z: number } }
+  facingRef: { current: number }
+  velMagRef: { current: number }
+  setPosition: (p: PlayerState) => void
+  chatOpenRef: React.RefObject<boolean>
 }) {
-  const movingRef = useRef(false)
-  const prevPos = useRef(position)
-  const stopTimer = useRef<ReturnType<typeof setTimeout>>()
+  const throttleRef = useRef(0)
 
-  if (position.x !== prevPos.current.x || position.z !== prevPos.current.z) {
-    movingRef.current = true
-    prevPos.current = position
-    clearTimeout(stopTimer.current)
-    stopTimer.current = setTimeout(() => { movingRef.current = false }, 180)
-  }
+  useFrame((_, delta) => {
+    if (chatOpenRef.current) return
+    const MAX_SPEED = 5.2, ACCEL = 24, DECEL = 20, TURN_SPD = Math.PI * 5
+    let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
+    const keys = keysRef.current
+    if (keys['w'] || keys['ArrowUp'])    iz -= 1
+    if (keys['s'] || keys['ArrowDown'])  iz += 1
+    if (keys['a'] || keys['ArrowLeft'])  ix -= 1
+    if (keys['d'] || keys['ArrowRight']) ix += 1
+    const len = Math.sqrt(ix * ix + iz * iz)
+    const hasInput = len > 0.01
+    if (hasInput) {
+      const nx = ix / len, nz = iz / len
+      velocityRef.current.x += (nx * MAX_SPEED - velocityRef.current.x) * Math.min(1, ACCEL * delta)
+      velocityRef.current.z += (nz * MAX_SPEED - velocityRef.current.z) * Math.min(1, ACCEL * delta)
+      const targetFacing = Math.atan2(nx, -nz)
+      let diff = targetFacing - facingRef.current
+      while (diff > Math.PI) diff -= Math.PI * 2
+      while (diff < -Math.PI) diff += Math.PI * 2
+      facingRef.current += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPD * delta)
+    } else {
+      velocityRef.current.x *= Math.max(0, 1 - DECEL * delta)
+      velocityRef.current.z *= Math.max(0, 1 - DECEL * delta)
+    }
+    const vx = velocityRef.current.x, vz = velocityRef.current.z
+    velMagRef.current = Math.sqrt(vx * vx + vz * vz)
+    if (velMagRef.current > 0.02) {
+      const nx = positionRef.current.x + vx * delta
+      const nz = positionRef.current.z + vz * delta
+      if (canMove(nx, nz)) {
+        positionRef.current.x = nx; positionRef.current.z = nz
+      } else if (canMove(nx, positionRef.current.z)) {
+        positionRef.current.x = nx; velocityRef.current.z = 0
+      } else if (canMove(positionRef.current.x, nz)) {
+        positionRef.current.z = nz; velocityRef.current.x = 0
+      } else {
+        velocityRef.current.x = 0; velocityRef.current.z = 0
+      }
+      throttleRef.current += delta
+      if (throttleRef.current > 1 / 15) {
+        throttleRef.current = 0
+        setPosition({ x: positionRef.current.x, z: positionRef.current.z })
+      }
+    }
+  })
+  return null
+}
+
+// ─── Players ─────────────────────────────────────────────────────────────────
+function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor, facingRef, velMagRef }: {
+  positionRef: { current: { x: number; z: number } }
+  facingRef: { current: number }
+  velMagRef: { current: number }
+  bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string
+}) {
+  const groupRef  = useRef<THREE.Group>(null)
+  const movingRef = useRef(false)
+  const smoothRot = useRef(Math.PI)
+
+  useFrame((_, delta) => {
+    if (!groupRef.current) return
+    groupRef.current.position.x = positionRef.current.x
+    groupRef.current.position.z = positionRef.current.z
+    movingRef.current = velMagRef.current > 0.5
+    const target = Math.PI - facingRef.current
+    let diff = target - smoothRot.current
+    while (diff > Math.PI) diff -= Math.PI * 2
+    while (diff < -Math.PI) diff += Math.PI * 2
+    smoothRot.current += diff * Math.min(1, 12 * delta)
+    groupRef.current.rotation.y = smoothRot.current
+  })
 
   return (
-    <group position={[position.x, 0, position.z]}>
+    <group ref={groupRef}>
       <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
     </group>
   )
@@ -157,18 +227,28 @@ function LocalPlayer({ position, bodyColor, headColor, hairColor, pantsColor }: 
 function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsColor, name }: {
   targetPosition: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string; name?: string
 }) {
-  const groupRef = useRef<THREE.Group>(null)
-  const lp = useRef({ x: targetPosition.x, z: targetPosition.z })
+  const groupRef  = useRef<THREE.Group>(null)
+  const lp        = useRef({ x: targetPosition.x, z: targetPosition.z })
+  const smoothRot = useRef(0)
   const movingRef = useRef(false)
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!groupRef.current) return
     const dx = targetPosition.x - lp.current.x
     const dz = targetPosition.z - lp.current.z
-    movingRef.current = Math.abs(dx) + Math.abs(dz) > 0.01
+    const dist = Math.abs(dx) + Math.abs(dz)
+    movingRef.current = dist > 0.01
     lp.current.x += dx * 0.15
     lp.current.z += dz * 0.15
     groupRef.current.position.x = lp.current.x
     groupRef.current.position.z = lp.current.z
+    if (dist > 0.005) {
+      const targetRot = Math.atan2(dx, dz)
+      let rotDiff = targetRot - smoothRot.current
+      while (rotDiff > Math.PI) rotDiff -= Math.PI * 2
+      while (rotDiff < -Math.PI) rotDiff += Math.PI * 2
+      smoothRot.current += rotDiff * Math.min(1, 10 * delta)
+      groupRef.current.rotation.y = smoothRot.current
+    }
   })
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
@@ -220,7 +300,11 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
     const dz = target.current.z - pos.current.z
     movingRef.current = Math.abs(dx) + Math.abs(dz) > 0.005
     if (movingRef.current) {
-      groupRef.current.rotation.y = Math.atan2(dx, dz)
+      const targetRot = Math.atan2(dx, dz)
+      let rotDiff = targetRot - groupRef.current.rotation.y
+      while (rotDiff > Math.PI) rotDiff -= Math.PI * 2
+      while (rotDiff < -Math.PI) rotDiff += Math.PI * 2
+      groupRef.current.rotation.y += rotDiff * Math.min(1, 8 * delta)
     }
     groupRef.current.position.y = Math.sin(Date.now() * 0.0015 + npc.position[0]) * 0.04
   })
@@ -259,7 +343,12 @@ export default function App() {
   const [nearbyNpc, setNearbyNpc] = useState<NpcDef | null>(null)
   const [activeChatNpc, setActiveChatNpc] = useState<NpcDef | null>(null)
   const [camMode, setCamMode] = useState<CamMode>('iso')
-  const chatOpenRef = useRef(false)
+  const chatOpenRef    = useRef(false)
+  const keysRef        = useRef<Record<string, boolean>>({})
+  const velocityRef    = useRef({ x: 0, z: 0 })
+  const positionRef    = useRef({ x: 0, z: 0 })
+  const mobileInputRef = useRef({ x: 0, z: 0 })
+  const velMagRef      = useRef(0)
 
   // Profile
   const [myProfile, setMyProfile] = useState<PlayerProfile | null>(() => {
@@ -449,33 +538,32 @@ export default function App() {
       }
       if ((e.target as HTMLElement).tagName === 'INPUT') return
 
-      if (e.key === 'c' || e.key === 'C') {
-        setCamMode(prev => CAM_KEYS[(CAM_KEYS.indexOf(prev) + 1) % CAM_KEYS.length])
-        return
-      }
-
-      if (e.key === 'e' || e.key === 'E') {
-        if (nearbyNpc) {
-          setActiveChatNpc(nearbyNpc)
-          chatOpenRef.current = true
-          audio.playOpen()
-        } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
-          handleServeCustomer(nearbyCustomerId)
+      if (e.type === 'keydown') {
+        if (e.key === 'c' || e.key === 'C') {
+          setCamMode(prev => CAM_KEYS[(CAM_KEYS.indexOf(prev) + 1) % CAM_KEYS.length])
+          return
         }
-        return
+        if (e.key === 'e' || e.key === 'E') {
+          if (nearbyNpc) {
+            setActiveChatNpc(nearbyNpc)
+            chatOpenRef.current = true
+            audio.playOpen()
+          } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
+            handleServeCustomer(nearbyCustomerId)
+          }
+          return
+        }
+        keysRef.current[e.key] = true
+      } else {
+        delete keysRef.current[e.key]
       }
-
-      setPosition(prev => {
-        const step = 0.6
-        if (e.key === 'w' || e.key === 'ArrowUp')    { facingRef.current = 0;          const nz = prev.z - step; return canMove(prev.x, nz) ? { ...prev, z: nz } : prev }
-        if (e.key === 's' || e.key === 'ArrowDown')  { facingRef.current = Math.PI;    const nz = prev.z + step; return canMove(prev.x, nz) ? { ...prev, z: nz } : prev }
-        if (e.key === 'a' || e.key === 'ArrowLeft')  { facingRef.current = -Math.PI/2; const nx = prev.x - step; return canMove(nx, prev.z) ? { ...prev, x: nx } : prev }
-        if (e.key === 'd' || e.key === 'ArrowRight') { facingRef.current =  Math.PI/2; const nx = prev.x + step; return canMove(nx, prev.z) ? { ...prev, x: nx } : prev }
-        return prev
-      })
     }
     window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
+    window.addEventListener('keyup', handleKey)
+    return () => {
+      window.removeEventListener('keydown', handleKey)
+      window.removeEventListener('keyup', handleKey)
+    }
   }, [nearbyNpc, nearbyCustomerId, customerNeeds])
 
   useEffect(() => { socket.emit('move', position) }, [position])
@@ -530,15 +618,7 @@ export default function App() {
   }
 
   const handleMobileMove = (dx: number, dz: number) => {
-    if (chatOpenRef.current) return
-    if (Math.abs(dx) + Math.abs(dz) > 0.01) facingRef.current = Math.atan2(dx, -dz)
-    setPosition(prev => {
-      const nx = prev.x + dx, nz = prev.z + dz
-      if (canMove(nx, nz)) return { x: nx, z: nz }
-      if (canMove(nx, prev.z)) return { x: nx, z: prev.z }
-      if (canMove(prev.x, nz)) return { x: prev.x, z: nz }
-      return prev
-    })
+    mobileInputRef.current = { x: dx, z: dz }
   }
 
   const handlePinchStart = (e: React.TouchEvent) => {
@@ -807,7 +887,8 @@ export default function App() {
         <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
         <DJLights />
 
-        <CameraRig target={position} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} />
+        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} />
+        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
         <BeachClub />
         <ReceptionArea />
         <ValentinaBuggy />
@@ -821,7 +902,7 @@ export default function App() {
           missionActive={shiftPhase === 'active'}
           onPatienceOut={handlePatienceOut}
         />
-        {camMode !== 'pov' && <LocalPlayer position={position} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} hairColor={myOutfit.hairColor} pantsColor={myOutfit.pantsColor} />}
+        {camMode !== 'pov' && <LocalPlayer positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} hairColor={myOutfit.hairColor} pantsColor={myOutfit.pantsColor} />}
         {Object.entries(players).map(([id, player]) => {
           if (id === myId.current) return null
           const rProfile = remoteProfiles[id]

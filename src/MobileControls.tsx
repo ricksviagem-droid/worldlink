@@ -45,6 +45,7 @@ export function MobileControls({ onMove, onTalk, nearNpc }: Props) {
   const endMove = () => {
     setTouch(null)
     moveRef.current = { x: 0, z: 0 }
+    onMove(0, 0)
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
   }
 
