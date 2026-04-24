@@ -8,6 +8,9 @@ import { ChatPanel } from './ChatPanel'
 import { MobileControls } from './MobileControls'
 import { NPCS, TALK_DISTANCE, type NpcDef } from './npcData'
 import { audio } from './audio'
+import { CharacterMesh } from './CharacterMesh'
+import { AICustomers, CUSTOMER_DEFS, SERVE_DISTANCE, type CustomerNeed } from './AICustomers'
+import { MissionPanel } from './MissionPanel'
 
 const socket = io()
 const isMobile = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
@@ -37,42 +40,6 @@ function CameraRig({ target, mode }: { target: PlayerState; mode: CamMode }) {
     camera.lookAt(t.current.x, 0, t.current.z - 1)
   })
   return null
-}
-
-// ─── Character shape (capsule body + sphere head) ────────────────────────────
-function CharacterMesh({ bodyColor, headColor }: { bodyColor: string; headColor: string }) {
-  return (
-    <>
-      {/* Legs */}
-      <mesh position={[-0.13, 0.22, 0]} castShadow>
-        <capsuleGeometry args={[0.09, 0.3, 6, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.8} />
-      </mesh>
-      <mesh position={[0.13, 0.22, 0]} castShadow>
-        <capsuleGeometry args={[0.09, 0.3, 6, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.8} />
-      </mesh>
-      {/* Torso */}
-      <mesh position={[0, 0.85, 0]} castShadow>
-        <capsuleGeometry args={[0.22, 0.5, 8, 12]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} />
-      </mesh>
-      {/* Arms */}
-      <mesh position={[-0.3, 0.82, 0]} rotation={[0, 0, 0.4]} castShadow>
-        <capsuleGeometry args={[0.07, 0.4, 6, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.8} />
-      </mesh>
-      <mesh position={[0.3, 0.82, 0]} rotation={[0, 0, -0.4]} castShadow>
-        <capsuleGeometry args={[0.07, 0.4, 6, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.8} />
-      </mesh>
-      {/* Head */}
-      <mesh position={[0, 1.42, 0]} castShadow>
-        <sphereGeometry args={[0.24, 16, 16]} />
-        <meshStandardMaterial color={headColor} roughness={0.6} />
-      </mesh>
-    </>
-  )
 }
 
 // ─── Players ─────────────────────────────────────────────────────────────────
@@ -167,6 +134,16 @@ export default function App() {
   const [camMode, setCamMode] = useState<CamMode>('iso')
   const chatOpenRef = useRef(false)
 
+  // Mission & customers
+  const [xp, setXp] = useState(0)
+  const [servedTotal, setServedTotal] = useState(0)
+  const [justServed, setJustServed] = useState(false)
+  const [nearbyCustomerId, setNearbyCustomerId] = useState<string | null>(null)
+  const initNeeds = () => Object.fromEntries(
+    CUSTOMER_DEFS.map(c => [c.id, (['drink', 'towel', 'menu'] as CustomerNeed[])[Math.floor(Math.random() * 3)]])
+  ) as Record<string, CustomerNeed>
+  const [customerNeeds, setCustomerNeeds] = useState<Record<string, CustomerNeed>>(initNeeds)
+
   // Socket
   useEffect(() => {
     const onConnect = () => { myId.current = socket.id || '' }
@@ -203,6 +180,18 @@ export default function App() {
     setNearbyNpc(nearby)
     if (nearby && nearby.id !== prevNearby.current) audio.playProximity()
     prevNearby.current = nearby?.id ?? null
+
+    // Customer proximity (check against spawn positions)
+    if (!nearby) {
+      const nearCust = CUSTOMER_DEFS.find(c => {
+        const dx = position.x - c.spawn[0]
+        const dz = position.z - c.spawn[2]
+        return Math.sqrt(dx * dx + dz * dz) < SERVE_DISTANCE
+      }) ?? null
+      setNearbyCustomerId(nearCust?.id ?? null)
+    } else {
+      setNearbyCustomerId(null)
+    }
   }, [position])
 
   // Keyboard
@@ -222,10 +211,14 @@ export default function App() {
         return
       }
 
-      if ((e.key === 'e' || e.key === 'E') && nearbyNpc) {
-        setActiveChatNpc(nearbyNpc)
-        chatOpenRef.current = true
-        audio.playOpen()
+      if (e.key === 'e' || e.key === 'E') {
+        if (nearbyNpc) {
+          setActiveChatNpc(nearbyNpc)
+          chatOpenRef.current = true
+          audio.playOpen()
+        } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
+          handleServeCustomer(nearbyCustomerId)
+        }
         return
       }
 
@@ -239,7 +232,7 @@ export default function App() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [nearbyNpc])
+  }, [nearbyNpc, nearbyCustomerId, customerNeeds])
 
   useEffect(() => { socket.emit('move', position) }, [position])
 
@@ -247,6 +240,23 @@ export default function App() {
     setActiveChatNpc(null)
     chatOpenRef.current = false
     audio.playClose()
+  }
+
+  const handleServeCustomer = (customerId: string) => {
+    setCustomerNeeds(prev => ({ ...prev, [customerId]: 'happy' }))
+    setXp(prev => prev + 50)
+    setServedTotal(prev => prev + 1)
+    setJustServed(true)
+    audio.playSend()
+    setTimeout(() => setJustServed(false), 1000)
+    // After 8s customer has new need
+    const needs: CustomerNeed[] = ['drink', 'towel', 'menu']
+    setTimeout(() => {
+      setCustomerNeeds(prev => ({
+        ...prev,
+        [customerId]: needs[Math.floor(Math.random() * needs.length)],
+      }))
+    }, 8000)
   }
 
   const handleMobileMove = (x: number, z: number) => {
@@ -259,6 +269,8 @@ export default function App() {
       setActiveChatNpc(nearbyNpc)
       chatOpenRef.current = true
       audio.playOpen()
+    } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
+      handleServeCustomer(nearbyCustomerId)
     }
   }
 
@@ -304,9 +316,16 @@ export default function App() {
       {/* Chat panel */}
       {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
 
+      {/* Mission panel */}
+      <MissionPanel xp={xp} servedTotal={servedTotal} justServed={justServed} />
+
       {/* Mobile controls */}
       {isMobile && (
-        <MobileControls onMove={handleMobileMove} onTalk={handleMobileTalk} nearNpc={!!nearbyNpc} />
+        <MobileControls
+          onMove={handleMobileMove}
+          onTalk={handleMobileTalk}
+          nearNpc={!!nearbyNpc || (!!nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy')}
+        />
       )}
 
       <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }}>
@@ -328,6 +347,7 @@ export default function App() {
           <NPCCharacter key={npc.id} npc={npc} nearby={nearbyNpc?.id === npc.id} />
         ))}
 
+        <AICustomers needs={customerNeeds} nearbyId={nearbyCustomerId} />
         <LocalPlayer position={position} />
         {Object.entries(players).map(([id, player]) => {
           if (id === myId.current) return null
