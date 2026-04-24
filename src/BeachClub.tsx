@@ -304,6 +304,120 @@ function TikiTorch({ position }: { position: [number, number, number] }) {
   )
 }
 
+function DancingFigure({ position, bodyColor, headColor, phase = 0 }: {
+  position: [number, number, number]; bodyColor: string; headColor: string; phase?: number
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const lArmRef  = useRef<THREE.Group>(null)
+  const rArmRef  = useRef<THREE.Group>(null)
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime * 1.933 + phase  // 116 BPM
+    if (!groupRef.current) return
+    groupRef.current.position.y = Math.abs(Math.sin(t * Math.PI)) * 0.12
+    groupRef.current.rotation.y = Math.sin(t * Math.PI * 0.5) * 0.3
+    if (lArmRef.current) lArmRef.current.rotation.x = Math.sin(t * Math.PI + 0.9) * 0.85
+    if (rArmRef.current) rArmRef.current.rotation.x = Math.sin(t * Math.PI - 0.9) * 0.85
+  })
+  return (
+    <group ref={groupRef} position={position}>
+      <mesh position={[0, 0.62, 0]}>
+        <capsuleGeometry args={[0.14, 0.48, 4, 8]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.7} />
+      </mesh>
+      <mesh position={[0, 1.34, 0]}>
+        <sphereGeometry args={[0.18, 10, 10]} />
+        <meshStandardMaterial color={headColor} roughness={0.65} />
+      </mesh>
+      <group ref={lArmRef} position={[-0.22, 1.02, 0]}>
+        <mesh position={[0, -0.18, 0]}>
+          <capsuleGeometry args={[0.05, 0.32, 4, 6]} />
+          <meshStandardMaterial color={bodyColor} roughness={0.7} />
+        </mesh>
+      </group>
+      <group ref={rArmRef} position={[0.22, 1.02, 0]}>
+        <mesh position={[0, -0.18, 0]}>
+          <capsuleGeometry args={[0.05, 0.32, 4, 6]} />
+          <meshStandardMaterial color={bodyColor} roughness={0.7} />
+        </mesh>
+      </group>
+    </group>
+  )
+}
+
+function DanceFloor() {
+  const matRefs = useRef<(THREE.MeshStandardMaterial | null)[]>([])
+  const TILES: [number, number][] = []
+  for (let col = -3; col <= 3; col += 2)
+    for (let row = 0; row < 4; row++)
+      TILES.push([col, -17.2 - row * 1.85])
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    const beat = Math.pow(Math.max(0, Math.cos((t * 116 / 60) * Math.PI * 2)), 4)
+    matRefs.current.forEach((mat, i) => {
+      if (!mat) return
+      mat.emissive.setHSL((t * 0.05 + i * 0.07) % 1, 1, 0.5)
+      mat.emissiveIntensity = 0.12 + beat * 1.4
+    })
+  })
+  return (
+    <>
+      <mesh position={[0, 0.005, -20]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[9, 8.5]} />
+        <meshStandardMaterial color="#06061a" roughness={0.18} metalness={0.35} />
+      </mesh>
+      {TILES.map(([x, z], i) => (
+        <mesh key={i} position={[x, 0.012, z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[1.6, 1.6]} />
+          <meshStandardMaterial
+            ref={el => { matRefs.current[i] = el }}
+            color="#0a0a22" emissive="#0055ff" emissiveIntensity={0.12}
+            roughness={0.1} metalness={0.55}
+          />
+        </mesh>
+      ))}
+    </>
+  )
+}
+
+function DanceSparkles() {
+  const COUNT   = 70
+  const ptsRef  = useRef<THREE.Points>(null)
+  const origPos = useRef((() => {
+    const a = new Float32Array(COUNT * 3)
+    for (let i = 0; i < COUNT; i++) {
+      a[i*3]   = (Math.random() - 0.5) * 8.5
+      a[i*3+1] = Math.random() * 4.2
+      a[i*3+2] = -17 - Math.random() * 6.5
+    }
+    return a
+  })())
+  const phases = useRef(Array.from({ length: COUNT }, () => Math.random() * Math.PI * 2))
+  const spds   = useRef(Array.from({ length: COUNT }, () => 0.5 + Math.random() * 0.9))
+  useFrame(({ clock }) => {
+    if (!ptsRef.current) return
+    const t   = clock.elapsedTime
+    const attr = ptsRef.current.geometry.attributes.position as THREE.BufferAttribute
+    const o   = origPos.current
+    for (let i = 0; i < COUNT; i++) {
+      attr.setXYZ(
+        i,
+        o[i*3] + Math.sin(t * 0.7 + phases.current[i]) * 0.25,
+        (o[i*3+1] + t * spds.current[i]) % 4.5,
+        o[i*3+2],
+      )
+    }
+    attr.needsUpdate = true
+  })
+  return (
+    <points ref={ptsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[origPos.current, 3]} />
+      </bufferGeometry>
+      <pointsMaterial color="#ffdd44" size={0.07} transparent opacity={0.7} sizeAttenuation depthWrite={false} />
+    </points>
+  )
+}
+
 function DJBooth() {
   return (
     <group position={[0, 0, -20]}>
@@ -632,11 +746,17 @@ export function BeachClub() {
       <BackgroundCustomer position={[3,    0, -5]}  color="#2a4a6a" rotation={-0.3} />
       <BackgroundCustomer position={[-2,   0, -12]} color="#8a6a2a" rotation={0.8} />
       <BackgroundCustomer position={[2,    0, -12]} color="#4a2a8a" rotation={-0.5} />
+      {/* Dancing crowd on the dance floor */}
+      <DanceFloor />
+      <DanceSparkles />
+      <DancingFigure position={[-3,   0, -17.5]} bodyColor="#e91e8c" headColor="#d4a07a" phase={0.0} />
+      <DancingFigure position={[ 0,   0, -17.5]} bodyColor="#2196f3" headColor="#f0c27f" phase={0.7} />
+      <DancingFigure position={[ 3,   0, -17.5]} bodyColor="#ff5722" headColor="#c8a07a" phase={1.4} />
+      <DancingFigure position={[-2,   0, -19.8]} bodyColor="#9c27b0" headColor="#d4a07a" phase={2.1} />
+      <DancingFigure position={[ 2,   0, -19.8]} bodyColor="#4caf50" headColor="#c0885a" phase={2.8} />
+      <DancingFigure position={[ 0,   0, -21.8]} bodyColor="#ff9800" headColor="#e8b88a" phase={3.5} />
       <BackgroundCustomer position={[-6,   0, -28]} color="#3a7a4a" rotation={1.2} />
       <BackgroundCustomer position={[6,    0, -28]} color="#7a3a4a" rotation={-0.7} />
-      <BackgroundCustomer position={[0,    0, -32]} color="#4a5a8a" rotation={0.2} />
-      <BackgroundCustomer position={[-10,  0, -30]} color="#aa5533" rotation={-0.4} />
-      <BackgroundCustomer position={[10,   0, -30]} color="#335588" rotation={0.6} />
 
       {/* Club-perimeter palms */}
       <PalmTree position={[-14, 0, -16]} lean={-1} seed={0} />

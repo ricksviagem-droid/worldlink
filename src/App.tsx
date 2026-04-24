@@ -133,6 +133,70 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
   return null
 }
 
+// ─── Day / Night cycle ───────────────────────────────────────────────────────
+function DayNight() {
+  const { scene } = useThree()
+  const sunRef  = useRef<THREE.DirectionalLight>(null)
+  const ambRef  = useRef<THREE.AmbientLight>(null)
+  const moonRef = useRef<THREE.DirectionalLight>(null)
+  const cA = useRef(new THREE.Color())
+  const cB = useRef(new THREE.Color())
+
+  useFrame(({ clock }) => {
+    if (!sunRef.current || !ambRef.current || !moonRef.current) return
+    const t = (clock.elapsedTime / 300) % 1   // 5-minute full cycle
+
+    type KF = { t: number; bg: string; fog: string; amb: string; ambI: number; sun: string; sunI: number; moonI: number }
+    const KFS: KF[] = [
+      { t:0.00, bg:'#7ec8e8', fog:'#f4a460', amb:'#ffe8c0', ambI:0.55, sun:'#ffcc88', sunI:2.0,  moonI:0.00 },
+      { t:0.28, bg:'#ff9933', fog:'#cc6622', amb:'#ff9944', ambI:0.48, sun:'#ff7722', sunI:1.5,  moonI:0.00 },
+      { t:0.42, bg:'#551122', fog:'#331100', amb:'#883355', ambI:0.25, sun:'#cc3311', sunI:0.45, moonI:0.10 },
+      { t:0.52, bg:'#060614', fog:'#040408', amb:'#1133aa', ambI:0.10, sun:'#223366', sunI:0.08, moonI:0.45 },
+      { t:0.78, bg:'#080820', fog:'#060610', amb:'#2244bb', ambI:0.12, sun:'#223366', sunI:0.08, moonI:0.40 },
+      { t:0.90, bg:'#ff6633', fog:'#cc3311', amb:'#ff8855', ambI:0.38, sun:'#ff9944', sunI:0.9,  moonI:0.08 },
+      { t:1.00, bg:'#7ec8e8', fog:'#f4a460', amb:'#ffe8c0', ambI:0.55, sun:'#ffcc88', sunI:2.0,  moonI:0.00 },
+    ]
+
+    let a = KFS[0], b = KFS[1]
+    for (let i = 0; i < KFS.length - 1; i++) {
+      if (t >= KFS[i].t && t <= KFS[i + 1].t) { a = KFS[i]; b = KFS[i + 1]; break }
+    }
+    const raw = (t - a.t) / (b.t - a.t + 0.00001)
+    const k   = raw * raw * (3 - 2 * raw)   // smoothstep
+
+    cA.current.set(a.bg);  cB.current.set(b.bg)
+    if (scene.background instanceof THREE.Color) scene.background.lerpColors(cA.current, cB.current, k)
+
+    if (scene.fog instanceof THREE.Fog) {
+      cA.current.set(a.fog); cB.current.set(b.fog)
+      scene.fog.color.lerpColors(cA.current, cB.current, k)
+    }
+
+    cA.current.set(a.amb); cB.current.set(b.amb)
+    ambRef.current.color.lerpColors(cA.current, cB.current, k)
+    ambRef.current.intensity = a.ambI + (b.ambI - a.ambI) * k
+
+    cA.current.set(a.sun); cB.current.set(b.sun)
+    sunRef.current.color.lerpColors(cA.current, cB.current, k)
+    sunRef.current.intensity = a.sunI + (b.sunI - a.sunI) * k
+
+    moonRef.current.intensity = a.moonI + (b.moonI - a.moonI) * k
+  })
+
+  return (
+    <>
+      <color attach="background" args={['#7ec8e8']} />
+      <ambientLight ref={ambRef} intensity={0.55} color="#ffe8c0" />
+      <directionalLight ref={sunRef} position={[12, 22, 8]} intensity={2.0} color="#ffcc88"
+        castShadow shadow-mapSize={[2048, 2048]}
+        shadow-camera-far={90} shadow-camera-left={-35}
+        shadow-camera-right={35} shadow-camera-top={35} shadow-camera-bottom={-35}
+      />
+      <directionalLight ref={moonRef} position={[-10, 18, -8]} intensity={0} color="#6688cc" />
+    </>
+  )
+}
+
 // ─── Disco lights ────────────────────────────────────────────────────────────
 function DJLights() {
   const refs = [
@@ -1223,16 +1287,8 @@ export default function App() {
       )}
 
       <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }}>
-        <color attach="background" args={['#f4a460']} />
         <fog attach="fog" args={['#f4a460', 45, 95]} />
-        <ambientLight intensity={0.55} color="#ffe8c0" />
-        <directionalLight
-          position={[12, 22, 8]} intensity={2.0} color="#ffcc88" castShadow
-          shadow-mapSize={[2048, 2048]}
-          shadow-camera-far={90} shadow-camera-left={-35}
-          shadow-camera-right={35} shadow-camera-top={35} shadow-camera-bottom={-35}
-        />
-        <directionalLight position={[-10, 8, -5]} intensity={0.25} color="#a0c8ff" />
+        <DayNight />
         {/* Pool area — cool aqua fill */}
         <pointLight position={[0, 4, -10]} intensity={6} distance={20} color="#40e0d0" decay={2} />
         {/* Bar — warm amber */}
