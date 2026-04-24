@@ -259,7 +259,7 @@ function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsCo
 }) {
   const groupRef  = useRef<THREE.Group>(null)
   const lp        = useRef({ x: targetPosition.x, z: targetPosition.z })
-  const smoothRot = useRef(0)
+  const smoothRot = useRef(Math.PI)
   const movingRef = useRef(false)
   useFrame((_, delta) => {
     if (!groupRef.current) return
@@ -335,6 +335,8 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
       while (rotDiff > Math.PI) rotDiff -= Math.PI * 2
       while (rotDiff < -Math.PI) rotDiff += Math.PI * 2
       groupRef.current.rotation.y += rotDiff * Math.min(1, 8 * delta)
+    } else if (groupRef.current.rotation.y === 0) {
+      groupRef.current.rotation.y = Math.PI
     }
     groupRef.current.position.y = Math.sin(Date.now() * 0.0015 + npc.position[0]) * 0.04
   })
