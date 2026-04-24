@@ -54,21 +54,25 @@ function canMove(x: number, z: number): boolean {
 }
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
-function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef }: {
+function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }: {
   targetRef: { current: { x: number; z: number } }
   mode: CamMode
   facingRef: React.RefObject<number>
   zoomRef: React.RefObject<number>
   camYawRef: React.RefObject<number>
+  velMagRef: { current: number }
 }) {
   const { camera } = useThree()
   const cam = camera as THREE.PerspectiveCamera
   const m = useRef(mode); m.current = mode
-  const smooth = useRef({ x: targetRef.current.x, z: targetRef.current.z })
+  const smooth   = useRef({ x: targetRef.current.x, z: targetRef.current.z })
+  const smoothY  = useRef(14)
+  const smoothDz = useRef(12)
 
-  useFrame(() => {
-    const zoom = zoomRef.current ?? 1.0
-    const cur = targetRef.current
+  useFrame((_, delta) => {
+    const zoom  = zoomRef.current ?? 1.0
+    const speed = velMagRef.current
+    const cur   = targetRef.current
 
     smooth.current.x += (cur.x - smooth.current.x) * 0.12
     smooth.current.z += (cur.z - smooth.current.z) * 0.12
@@ -76,29 +80,35 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef }: {
     if (m.current === 'pov') {
       const angle = facingRef.current ?? 0
       camera.position.x += (cur.x - camera.position.x) * 0.22
-      camera.position.y += (1.5  - camera.position.y) * 0.22
+      camera.position.y += (1.5   - camera.position.y) * 0.22
       camera.position.z += (cur.z - camera.position.z) * 0.22
       camera.lookAt(
         cur.x + Math.sin(angle) * 8,
         1.4,
         cur.z - Math.cos(angle) * 8,
       )
-      cam.fov += (80 / zoom - cam.fov) * 0.12
+      const povFov = 75 + Math.min(speed / 5.2, 1) * 10
+      cam.fov += (povFov / zoom - cam.fov) * Math.min(1, 6 * delta)
       cam.updateProjectionMatrix()
       return
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
+    const lerpCfg = Math.min(1, 6 * delta)
+    smoothY.current  += (cfg.y  - smoothY.current)  * lerpCfg
+    smoothDz.current += (cfg.dz - smoothDz.current) * lerpCfg
+
     const yaw = camYawRef.current ?? 0
     const tx = smooth.current.x
     const tz = smooth.current.z
-    const idealX = tx + Math.sin(yaw) * cfg.dz
-    const idealZ = tz + Math.cos(yaw) * cfg.dz
-    camera.position.x += (idealX - camera.position.x) * cfg.speed
-    camera.position.y += (cfg.y   - camera.position.y) * cfg.speed
-    camera.position.z += (idealZ  - camera.position.z) * cfg.speed
+    const idealX = tx + Math.sin(yaw) * smoothDz.current
+    const idealZ = tz + Math.cos(yaw) * smoothDz.current
+    camera.position.x += (idealX          - camera.position.x) * cfg.speed
+    camera.position.y += (smoothY.current - camera.position.y) * cfg.speed
+    camera.position.z += (idealZ          - camera.position.z) * cfg.speed
     camera.lookAt(tx, 0, tz)
-    cam.fov += (50 / zoom - cam.fov) * 0.10
+    const baseFov = 50 + Math.min(speed / 5.2, 1) * 6
+    cam.fov += (baseFov / zoom - cam.fov) * Math.min(1, 4 * delta)
     cam.updateProjectionMatrix()
   })
   return null
@@ -332,12 +342,15 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const myId = useRef('')
-  const facingRef   = useRef(0)         // player facing angle (radians)
-  const zoomRef     = useRef(1.0)       // camera zoom level
-  const camYawRef   = useRef(0)         // camera orbit angle (right-drag / two-finger swipe)
+  const myId        = useRef('')
+  const wrapperRef  = useRef<HTMLDivElement>(null)
+  const facingRef   = useRef(0)
+  const zoomRef     = useRef(1.0)
+  const camYawRef   = useRef(0)
   const pinchStart  = useRef({ dist: 0, zoom: 1.0 })
   const dragRef     = useRef<{ x: number; yaw: number; type: 'orbit' | 'pov' } | null>(null)
+  const isLockedRef = useRef(false)
+  const [isPointerLocked, setIsPointerLocked] = useState(false)
   const [position, setPosition] = useState<PlayerState>({ x: 0, z: 0 })
   const [players, setPlayers] = useState<PlayersMap>({})
   const [nearbyNpc, setNearbyNpc] = useState<NpcDef | null>(null)
@@ -488,6 +501,32 @@ export default function App() {
       socket.off('newMatch', onNewMatch)
     }
   }, [])
+
+  // Pointer lock state sync
+  useEffect(() => {
+    const onChange = () => {
+      const locked = !!document.pointerLockElement
+      isLockedRef.current = locked
+      setIsPointerLocked(locked)
+    }
+    document.addEventListener('pointerlockchange', onChange)
+    return () => document.removeEventListener('pointerlockchange', onChange)
+  }, [])
+
+  // Exit pointer lock when leaving POV mode
+  useEffect(() => {
+    if (camMode !== 'pov' && document.pointerLockElement) document.exitPointerLock()
+  }, [camMode])
+
+  // POV free-look via locked pointer
+  useEffect(() => {
+    if (camMode !== 'pov') return
+    const onMove = (e: MouseEvent) => {
+      if (isLockedRef.current) facingRef.current += e.movementX * 0.003
+    }
+    document.addEventListener('mousemove', onMove)
+    return () => document.removeEventListener('mousemove', onMove)
+  }, [camMode])
 
   // Proximity detection + audio init on first move
   const prevNearby = useRef<string | null>(null)
@@ -642,6 +681,7 @@ export default function App() {
     if (e.button === 2) {
       dragRef.current = { x: e.clientX, yaw: camYawRef.current, type: 'orbit' }
     } else if (e.button === 0 && camMode === 'pov') {
+      if (!isLockedRef.current) wrapperRef.current?.requestPointerLock()
       dragRef.current = { x: e.clientX, yaw: facingRef.current, type: 'pov' }
     }
   }
@@ -649,7 +689,7 @@ export default function App() {
     if (!dragRef.current) return
     if (dragRef.current.type === 'orbit') {
       camYawRef.current = dragRef.current.yaw - (e.clientX - dragRef.current.x) * 0.007
-    } else {
+    } else if (!isLockedRef.current) {
       facingRef.current = dragRef.current.yaw + (e.clientX - dragRef.current.x) * 0.008
     }
   }
@@ -690,14 +730,37 @@ export default function App() {
 
   return (
     <div
+      ref={wrapperRef}
       style={{ width: '100vw', height: '100vh', position: 'relative', background: '#f4a460' }}
       onTouchStart={handlePinchStart}
       onTouchMove={handlePinchMove}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onWheel={e => { zoomRef.current = Math.min(3, Math.max(0.35, zoomRef.current * (1 - e.deltaY * 0.001))) }}
       onContextMenu={e => e.preventDefault()}
     >
+      {/* POV crosshair + click-to-lock hint */}
+      {camMode === 'pov' && (
+        <>
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%', zIndex: 5,
+            transform: 'translate(-50%,-50%)', width: 18, height: 18, pointerEvents: 'none',
+          }}>
+            <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: 'rgba(255,255,255,0.55)', transform: 'translateY(-50%)' }} />
+            <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.55)', transform: 'translateX(-50%)' }} />
+          </div>
+          {!isPointerLocked && (
+            <div style={{
+              position: 'absolute', top: 'calc(50% + 22px)', left: '50%',
+              transform: 'translateX(-50%)', zIndex: 5,
+              color: 'rgba(255,255,255,0.45)', fontSize: 11,
+              fontFamily: '-apple-system, sans-serif', pointerEvents: 'none',
+              letterSpacing: 0.4,
+            }}>Click to look freely · ESC to release</div>
+          )}
+        </>
+      )}
       {/* HUD — top right */}
       {hudVisible.topRight ? (
         <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -887,7 +950,7 @@ export default function App() {
         <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
         <DJLights />
 
-        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} />
+        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} />
         <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
         <BeachClub />
         <ReceptionArea />
