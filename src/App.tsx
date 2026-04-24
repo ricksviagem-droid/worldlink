@@ -18,6 +18,7 @@ import { ValentinaBuggy } from './ValentinaBuggy'
 import { ProfileSetup } from './ProfileSetup'
 import { ProfileCard, type CardProfile } from './ProfileCard'
 import { MatchNotification, MatchesPanel } from './MatchesPanel'
+import { DMPanel, type DMMessage } from './DMPanel'
 import { Shop } from './Shop'
 import { getOutfit, STORAGE_KEY, type PlayerProfile } from './outfits'
 
@@ -480,6 +481,9 @@ export default function App() {
   const [matchNotify, setMatchNotify] = useState<{
     name: string; faceEmoji?: string; bodyColor: string; headColor: string
   } | null>(null)
+  const [activeDMId,  setActiveDMId]  = useState<string | null>(null)
+  const [dmMessages,  setDmMessages]  = useState<Record<string, DMMessage[]>>({})
+  const [unreadDMs,   setUnreadDMs]   = useState<Set<string>>(new Set())
   const remoteProfilesRef = useRef(remoteProfiles)
   remoteProfilesRef.current = remoteProfiles
   const [showShop, setShowShop] = useState(false)
@@ -596,6 +600,24 @@ export default function App() {
       }
     }
 
+    const onReceiveDM = ({ fromId, text, timestamp }: { fromId: string; text: string; timestamp: number }) => {
+      setDmMessages(prev => ({
+        ...prev,
+        [fromId]: [...(prev[fromId] ?? []), { fromId, text, timestamp }],
+      }))
+      setActiveDMId(cur => {
+        if (cur !== fromId) {
+          setUnreadDMs(u => new Set([...u, fromId]))
+          setNotification(`💬 ${remoteProfilesRef.current[fromId]?.name ?? 'Alguém'} enviou uma mensagem!`)
+          setTimeout(() => setNotification(null), 4000)
+        }
+        return cur
+      })
+    }
+    const onDmHistory = ({ withId, messages }: { withId: string; messages: DMMessage[] }) => {
+      setDmMessages(prev => ({ ...prev, [withId]: messages }))
+    }
+
     socket.on('connect', onConnect)
     socket.on('currentPlayers', onCurrentPlayers)
     socket.on('newPlayer', onNewPlayer)
@@ -605,6 +627,8 @@ export default function App() {
     socket.on('existingProfiles', onExistingProfiles)
     socket.on('receiveLike', onReceiveLike)
     socket.on('newMatch', onNewMatch)
+    socket.on('receiveDM', onReceiveDM)
+    socket.on('dmHistory', onDmHistory)
     return () => {
       socket.off('connect', onConnect)
       socket.off('currentPlayers', onCurrentPlayers)
@@ -614,6 +638,8 @@ export default function App() {
       socket.off('playerProfile', onPlayerProfile)
       socket.off('existingProfiles', onExistingProfiles)
       socket.off('receiveLike', onReceiveLike)
+      socket.off('receiveDM', onReceiveDM)
+      socket.off('dmHistory', onDmHistory)
       socket.off('newMatch', onNewMatch)
     }
   }, [])
@@ -1005,7 +1031,7 @@ export default function App() {
       )}
 
       {/* Matches panel */}
-      {showMatches && (() => {
+      {showMatches && !activeDMId && (() => {
         const cardProfiles: Record<string, CardProfile> = {}
         Object.entries(remoteProfiles).forEach(([id, rp]) => {
           const outfit = getOutfit(rp.outfitId)
@@ -1016,7 +1042,39 @@ export default function App() {
             matches={matches}
             profiles={cardProfiles}
             myInterests={myProfile?.interests ?? []}
+            unreadDMs={unreadDMs}
+            onOpenDM={id => {
+              setActiveDMId(id)
+              setUnreadDMs(prev => { const s = new Set(prev); s.delete(id); return s })
+              socket.emit('getDMHistory', { withId: id })
+            }}
             onClose={() => setShowMatches(false)}
+          />
+        )
+      })()}
+
+      {/* DM panel */}
+      {activeDMId && (() => {
+        const rp = remoteProfiles[activeDMId]
+        if (!rp) return null
+        const outfit = getOutfit(rp.outfitId)
+        const partnerCard: CardProfile = { name: rp.name, faceEmoji: rp.faceEmoji, bodyColor: outfit.bodyColor, headColor: outfit.headColor, bio: rp.bio, interests: rp.interests, isNpc: false }
+        const myOutfitColors = getOutfit(myProfile!.outfitId)
+        return (
+          <DMPanel
+            partnerProfile={partnerCard}
+            myId={myId.current}
+            myEmoji={myProfile!.faceEmoji}
+            myBodyColor={myOutfitColors.bodyColor}
+            myHeadColor={myOutfitColors.headColor}
+            messages={dmMessages[activeDMId] ?? []}
+            onSend={text => {
+              const msg: DMMessage = { fromId: myId.current, text, timestamp: Date.now() }
+              setDmMessages(prev => ({ ...prev, [activeDMId]: [...(prev[activeDMId] ?? []), msg] }))
+              socket.emit('sendDM', { toId: activeDMId, text })
+            }}
+            onBack={() => setActiveDMId(null)}
+            onClose={() => { setActiveDMId(null); setShowMatches(false) }}
           />
         )
       })()}

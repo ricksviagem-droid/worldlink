@@ -89,15 +89,6 @@ export function MatchNotification({
             color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: 600,
             fontFamily: 'inherit',
           }}>Continuar</button>
-          <button disabled style={{
-            padding: '12px 28px', borderRadius: 30,
-            border: 'none', background: 'rgba(243,156,18,0.35)',
-            color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: 700,
-            fontFamily: 'inherit', cursor: 'not-allowed',
-          }}>💬 Mensagem</button>
-        </div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.18)', marginTop: 10, fontStyle: 'italic' }}>
-          Mensagens chegam em breve
         </div>
       </div>
     </div>
@@ -109,10 +100,12 @@ interface MatchesPanelProps {
   matches: Set<string>
   profiles: Record<string, CardProfile>
   myInterests: string[]
+  unreadDMs: Set<string>
+  onOpenDM: (id: string) => void
   onClose: () => void
 }
 
-export function MatchesPanel({ matches, profiles, myInterests, onClose }: MatchesPanelProps) {
+export function MatchesPanel({ matches, profiles, myInterests, unreadDMs, onOpenDM, onClose }: MatchesPanelProps) {
   const matchList = [...matches].filter(id => profiles[id])
 
   return (
@@ -193,13 +186,23 @@ export function MatchesPanel({ matches, profiles, myInterests, onClose }: Matche
                 ) : null}
               </div>
 
-              {/* DM button — disabled until Part 3 */}
-              <button disabled title="Mensagens em breve" style={{
+              {/* DM button */}
+              <button onClick={() => onOpenDM(id)} style={{
                 width: 34, height: 34, borderRadius: '50%', border: 'none', flexShrink: 0,
-                background: 'rgba(243,156,18,0.12)', color: 'rgba(243,156,18,0.35)',
-                fontSize: 15, cursor: 'not-allowed',
+                background: unreadDMs.has(id) ? 'rgba(243,156,18,0.35)' : 'rgba(243,156,18,0.14)',
+                color: '#f39c12', fontSize: 15, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>💬</button>
+                position: 'relative', transition: 'background 0.15s',
+              }}>
+                💬
+                {unreadDMs.has(id) && (
+                  <div style={{
+                    position: 'absolute', top: -2, right: -2,
+                    width: 9, height: 9, borderRadius: '50%', background: '#e74c3c',
+                    border: '1.5px solid rgba(5,5,16,0.9)',
+                  }} />
+                )}
+              </button>
             </div>
           )
         })}

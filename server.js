@@ -183,9 +183,12 @@ app.get(/(.*)/, (_req, res) => {
 })
 
 // Multiplayer
-const players = {}
+const players  = {}
 const profiles = {}
-const likes = {}  // { socketId: Set<targetId> }
+const likes    = {}   // { socketId: Set<targetId> }
+const dms      = {}   // { roomKey: [{ fromId, text, timestamp }] }
+
+const dmRoom = (a, b) => [a, b].sort().join('__')
 
 io.on('connection', (socket) => {
   console.log('player connected:', socket.id)
@@ -219,6 +222,19 @@ io.on('connection', (socket) => {
       io.to(targetId).emit('newMatch', { withId: socket.id })
       socket.emit('newMatch', { withId: targetId })
     }
+  })
+
+  socket.on('sendDM', ({ toId, text }) => {
+    const msg = { fromId: socket.id, text, timestamp: Date.now() }
+    const key = dmRoom(socket.id, toId)
+    if (!dms[key]) dms[key] = []
+    dms[key].push(msg)
+    io.to(toId).emit('receiveDM', { fromId: socket.id, text, timestamp: msg.timestamp })
+  })
+
+  socket.on('getDMHistory', ({ withId }) => {
+    const key = dmRoom(socket.id, withId)
+    socket.emit('dmHistory', { withId, messages: dms[key] || [] })
   })
 
   socket.on('disconnect', () => {
