@@ -17,6 +17,7 @@ import { ReceptionArea } from './ReceptionArea'
 import { ValentinaBuggy } from './ValentinaBuggy'
 import { ProfileSetup } from './ProfileSetup'
 import { ProfileCard, type CardProfile } from './ProfileCard'
+import { MatchNotification, MatchesPanel } from './MatchesPanel'
 import { Shop } from './Shop'
 import { getOutfit, STORAGE_KEY, type PlayerProfile } from './outfits'
 
@@ -475,6 +476,12 @@ export default function App() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
   const [matches, setMatches] = useState<Set<string>>(new Set())
   const [likedNpcIds, setLikedNpcIds] = useState<Set<string>>(new Set())
+  const [showMatches, setShowMatches] = useState(false)
+  const [matchNotify, setMatchNotify] = useState<{
+    name: string; faceEmoji?: string; bodyColor: string; headColor: string
+  } | null>(null)
+  const remoteProfilesRef = useRef(remoteProfiles)
+  remoteProfilesRef.current = remoteProfiles
   const [showShop, setShowShop] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
 
@@ -579,8 +586,14 @@ export default function App() {
     }
     const onNewMatch = ({ withId }: { withId: string }) => {
       setMatches(prev => new Set(prev).add(withId))
-      setNotification('💞 É um Match!')
-      setTimeout(() => setNotification(null), 5000)
+      const p = remoteProfilesRef.current[withId]
+      if (p) {
+        const outfit = getOutfit(p.outfitId)
+        setMatchNotify({ name: p.name, faceEmoji: p.faceEmoji, bodyColor: outfit.bodyColor, headColor: outfit.headColor })
+      } else {
+        setNotification('💫 É um Match!')
+        setTimeout(() => setNotification(null), 5000)
+      }
     }
 
     socket.on('connect', onConnect)
@@ -895,6 +908,27 @@ export default function App() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
           }}>{myProfile.faceEmoji}</button>
+          {/* Matches button */}
+          <button onClick={() => setShowMatches(true)} title="Ver matches" style={{
+            width: 38, height: 38, borderRadius: '50%', position: 'relative',
+            border: matches.size > 0 ? '2px solid rgba(231,76,60,0.6)' : '2px solid rgba(255,255,255,0.15)',
+            background: matches.size > 0 ? 'rgba(231,76,60,0.18)' : 'rgba(0,0,0,0.4)',
+            cursor: 'pointer', fontSize: 18,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+            backdropFilter: 'blur(8px)',
+          }}>
+            ❤️
+            {matches.size > 0 && (
+              <div style={{
+                position: 'absolute', top: -4, right: -4,
+                width: 17, height: 17, borderRadius: '50%',
+                background: '#e74c3c', fontSize: 9, fontWeight: 800, color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1.5px solid rgba(0,0,0,0.3)',
+              }}>{matches.size}</div>
+            )}
+          </button>
           {/* Pill bar: Shop + Online + Collapse */}
           <div style={{
             display: 'flex', gap: 0, alignItems: 'center',
@@ -969,6 +1003,41 @@ export default function App() {
       {showShop && (
         <Shop myProfile={myProfile!} onChangeOutfit={handleChangeOutfit} onClose={() => setShowShop(false)} />
       )}
+
+      {/* Matches panel */}
+      {showMatches && (() => {
+        const cardProfiles: Record<string, CardProfile> = {}
+        Object.entries(remoteProfiles).forEach(([id, rp]) => {
+          const outfit = getOutfit(rp.outfitId)
+          cardProfiles[id] = { name: rp.name, faceEmoji: rp.faceEmoji, bodyColor: outfit.bodyColor, headColor: outfit.headColor, bio: rp.bio, interests: rp.interests, isNpc: false }
+        })
+        return (
+          <MatchesPanel
+            matches={matches}
+            profiles={cardProfiles}
+            myInterests={myProfile?.interests ?? []}
+            onClose={() => setShowMatches(false)}
+          />
+        )
+      })()}
+
+      {/* Match notification overlay */}
+      {matchNotify && myProfile && (() => {
+        const myOutfitColors = getOutfit(myProfile.outfitId)
+        return (
+          <MatchNotification
+            myName={myProfile.name}
+            myEmoji={myProfile.faceEmoji}
+            myBodyColor={myOutfitColors.bodyColor}
+            myHeadColor={myOutfitColors.headColor}
+            matchName={matchNotify.name}
+            matchEmoji={matchNotify.faceEmoji}
+            matchBodyColor={matchNotify.bodyColor}
+            matchHeadColor={matchNotify.headColor}
+            onContinue={() => setMatchNotify(null)}
+          />
+        )
+      })()}
 
       {/* Notification toast */}
       {notification && (
