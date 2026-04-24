@@ -29,7 +29,6 @@ export function MissionPanel({
 
   return (
     <div style={{
-      position: 'absolute', top: 60, right: 16, zIndex: 10,
       background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)',
       borderRadius: 18, padding: '14px 18px', minWidth: 192,
       fontFamily: '-apple-system, sans-serif', color: '#fff',

@@ -25,27 +25,54 @@ const isMobile = typeof window !== 'undefined' && ('ontouchstart' in window || n
 
 type PlayerState = { x: number; z: number }
 type PlayersMap = Record<string, PlayerState>
-type CamMode = 'iso' | 'top' | 'close' | 'wide'
+type CamMode = 'iso' | 'top' | 'close' | 'wide' | 'pov'
 
-const CAM: Record<CamMode, { y: number; dz: number; speed: number }> = {
+const CAM: Record<Exclude<CamMode,'pov'>, { y: number; dz: number; speed: number }> = {
   iso:   { y: 14, dz: 12, speed: 0.07 },
   top:   { y: 24, dz: 2,  speed: 0.06 },
   close: { y: 6,  dz: 5,  speed: 0.10 },
   wide:  { y: 20, dz: 20, speed: 0.05 },
 }
-const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide']
+const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide', 'pov']
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
-function CameraRig({ target, mode }: { target: PlayerState; mode: CamMode }) {
+function CameraRig({ target, mode, facingRef, zoomRef }: {
+  target: PlayerState
+  mode: CamMode
+  facingRef: React.RefObject<number>
+  zoomRef: React.RefObject<number>
+}) {
   const { camera } = useThree()
+  const cam = camera as THREE.PerspectiveCamera
   const t = useRef(target); t.current = target
   const m = useRef(mode); m.current = mode
+
   useFrame(() => {
-    const cfg = CAM[m.current]
+    const zoom = zoomRef.current ?? 1.0
+
+    if (m.current === 'pov') {
+      const angle = facingRef.current ?? 0
+      const lookDist = 8
+      camera.position.x += (t.current.x - camera.position.x) * 0.22
+      camera.position.y += (1.5  - camera.position.y) * 0.22
+      camera.position.z += (t.current.z - camera.position.z) * 0.22
+      camera.lookAt(
+        t.current.x + Math.sin(angle) * lookDist,
+        1.4,
+        t.current.z - Math.cos(angle) * lookDist,
+      )
+      cam.fov += (80 / zoom - cam.fov) * 0.12
+      cam.updateProjectionMatrix()
+      return
+    }
+
+    const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
     camera.position.x += (t.current.x - camera.position.x) * cfg.speed
-    camera.position.y += (cfg.y - camera.position.y) * cfg.speed
+    camera.position.y += (cfg.y      - camera.position.y) * cfg.speed
     camera.position.z += (t.current.z + cfg.dz - camera.position.z) * cfg.speed
     camera.lookAt(t.current.x, 0, t.current.z - 1)
+    cam.fov += (50 / zoom - cam.fov) * 0.10
+    cam.updateProjectionMatrix()
   })
   return null
 }
@@ -176,6 +203,9 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
 // ─── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const myId = useRef('')
+  const facingRef = useRef(0)         // player facing angle (radians)
+  const zoomRef = useRef(1.0)         // camera zoom level
+  const pinchStart = useRef({ dist: 0, zoom: 1.0 })
   const [position, setPosition] = useState<PlayerState>({ x: 0, z: 0 })
   const [players, setPlayers] = useState<PlayersMap>({})
   const [nearbyNpc, setNearbyNpc] = useState<NpcDef | null>(null)
@@ -388,10 +418,10 @@ export default function App() {
       }
 
       setPosition(prev => {
-        if (e.key === 'w' || e.key === 'ArrowUp')    return { ...prev, z: prev.z - 0.6 }
-        if (e.key === 's' || e.key === 'ArrowDown')  return { ...prev, z: prev.z + 0.6 }
-        if (e.key === 'a' || e.key === 'ArrowLeft')  return { ...prev, x: prev.x - 0.6 }
-        if (e.key === 'd' || e.key === 'ArrowRight') return { ...prev, x: prev.x + 0.6 }
+        if (e.key === 'w' || e.key === 'ArrowUp')    { facingRef.current = 0;           return { ...prev, z: prev.z - 0.6 } }
+        if (e.key === 's' || e.key === 'ArrowDown')  { facingRef.current = Math.PI;     return { ...prev, z: prev.z + 0.6 } }
+        if (e.key === 'a' || e.key === 'ArrowLeft')  { facingRef.current = -Math.PI/2;  return { ...prev, x: prev.x - 0.6 } }
+        if (e.key === 'd' || e.key === 'ArrowRight') { facingRef.current =  Math.PI/2;  return { ...prev, x: prev.x + 0.6 } }
         return prev
       })
     }
@@ -452,7 +482,25 @@ export default function App() {
 
   const handleMobileMove = (x: number, z: number) => {
     if (chatOpenRef.current) return
+    if (Math.abs(x) + Math.abs(z) > 0.01) facingRef.current = Math.atan2(x, -z)
     setPosition(prev => ({ x: prev.x + x, z: prev.z + z }))
+  }
+
+  const handlePinchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      pinchStart.current = { dist: Math.sqrt(dx*dx + dy*dy), zoom: zoomRef.current }
+    }
+  }
+
+  const handlePinchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx*dx + dy*dy)
+      zoomRef.current = Math.min(3, Math.max(0.35, pinchStart.current.zoom * (dist / pinchStart.current.dist)))
+    }
   }
 
   const handleMobileTalk = () => {
@@ -465,35 +513,65 @@ export default function App() {
     }
   }
 
+  const [hudVisible, setHudVisible] = useState({ cam: true, topRight: true, mission: true })
+  const toggleHud = (key: keyof typeof hudVisible) =>
+    setHudVisible(prev => ({ ...prev, [key]: !prev[key] }))
+
   // Show profile setup on first visit or when editing
   if (!myProfile || showProfileSetup) {
     return <ProfileSetup initial={myProfile} onSave={handleSaveProfile} />
   }
 
+  const restorePill = (key: keyof typeof hudVisible, icon: string, style: React.CSSProperties) => (
+    <button
+      onClick={() => toggleHud(key)}
+      style={{
+        position: 'absolute', zIndex: 15,
+        background: 'rgba(0,0,0,0.5)', color: 'rgba(255,255,255,0.7)',
+        border: '1px solid rgba(255,255,255,0.18)', borderRadius: 20,
+        padding: '5px 12px', fontSize: 14, cursor: 'pointer',
+        backdropFilter: 'blur(8px)', fontFamily: 'sans-serif',
+        ...style,
+      }}
+    >{icon}</button>
+  )
+
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', background: '#f4a460' }}>
+    <div
+      style={{ width: '100vw', height: '100vh', position: 'relative', background: '#f4a460' }}
+      onTouchStart={handlePinchStart}
+      onTouchMove={handlePinchMove}
+    >
       {/* HUD — top right */}
-      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-        {/* Avatar button */}
-        <button onClick={() => setShowProfileSetup(true)} title="Editar perfil" style={{
-          width: 38, height: 38, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)',
-          background: myOutfit.bodyColor, cursor: 'pointer', fontSize: 18,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>{myProfile.faceEmoji}</button>
-        {/* Shop button */}
-        <button onClick={() => setShowShop(true)} style={{
-          padding: '6px 14px', borderRadius: 20, border: 'none',
-          background: 'rgba(0,0,0,0.45)', color: '#fff',
-          fontFamily: 'sans-serif', fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(6px)',
-        }}>🛍️</button>
-        {/* Online count */}
-        <div style={{
-          background: 'rgba(0,0,0,0.45)', color: 'white',
-          padding: '6px 14px', borderRadius: 20,
-          fontFamily: 'sans-serif', fontSize: 13,
-          backdropFilter: 'blur(6px)',
-        }}>{Object.keys(players).length} online</div>
-      </div>
+      {hudVisible.topRight ? (
+        <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Avatar button */}
+          <button onClick={() => setShowProfileSetup(true)} title="Editar perfil" style={{
+            width: 38, height: 38, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)',
+            background: myOutfit.bodyColor, cursor: 'pointer', fontSize: 18,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>{myProfile.faceEmoji}</button>
+          {/* Shop button */}
+          <button onClick={() => setShowShop(true)} style={{
+            padding: '6px 14px', borderRadius: 20, border: 'none',
+            background: 'rgba(0,0,0,0.45)', color: '#fff',
+            fontFamily: 'sans-serif', fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(6px)',
+          }}>🛍️</button>
+          {/* Online count */}
+          <div style={{
+            background: 'rgba(0,0,0,0.45)', color: 'white',
+            padding: '6px 14px', borderRadius: 20,
+            fontFamily: 'sans-serif', fontSize: 13,
+            backdropFilter: 'blur(6px)',
+          }}>{Object.keys(players).length} online</div>
+          {/* Collapse button */}
+          <button onClick={() => toggleHud('topRight')} style={{
+            width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.5)',
+            cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>−</button>
+        </div>
+      ) : restorePill('topRight', '≡', { top: 16, right: 16 })}
 
       <div style={{
         position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
@@ -506,20 +584,24 @@ export default function App() {
       </div>
 
       {/* Camera mode selector */}
-      <div style={{
-        position: 'absolute', top: 16, left: 16, zIndex: 10,
-        display: 'flex', gap: 6,
-      }}>
-        {CAM_KEYS.map(m => (
-          <button key={m} onClick={() => setCamMode(m)} style={{
-            padding: '5px 12px', borderRadius: 16, border: 'none',
-            background: camMode === m ? 'rgba(243,156,18,0.85)' : 'rgba(0,0,0,0.45)',
-            color: camMode === m ? '#111' : 'rgba(255,255,255,0.6)',
-            fontFamily: 'sans-serif', fontSize: 12, fontWeight: camMode === m ? 700 : 400,
-            cursor: 'pointer', backdropFilter: 'blur(6px)',
-          }}>{m}</button>
-        ))}
-      </div>
+      {hudVisible.cam ? (
+        <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
+          {CAM_KEYS.map(m => (
+            <button key={m} onClick={() => setCamMode(m)} style={{
+              padding: '5px 12px', borderRadius: 16, border: 'none',
+              background: camMode === m ? 'rgba(243,156,18,0.85)' : 'rgba(0,0,0,0.45)',
+              color: camMode === m ? '#111' : 'rgba(255,255,255,0.6)',
+              fontFamily: 'sans-serif', fontSize: 12, fontWeight: camMode === m ? 700 : 400,
+              cursor: 'pointer', backdropFilter: 'blur(6px)',
+            }}>{m}</button>
+          ))}
+          <button onClick={() => toggleHud('cam')} style={{
+            width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.5)',
+            cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>−</button>
+        </div>
+      ) : restorePill('cam', '📷', { top: 16, left: 16 })}
 
       {/* Shop */}
       {showShop && (
@@ -576,14 +658,30 @@ export default function App() {
       )}
 
       {/* Mission / shift panel */}
-      <MissionPanel
-        xp={xp} servedTotal={servedTotal} justServed={justServed}
-        shiftPhase={shiftPhase} shiftTimeLeft={shiftTimeLeft}
-        shiftServed={shiftServed} shiftMissed={shiftMissed}
-        onStartShift={startShift}
-        onEndShift={() => { endShift(true); setShowReport(true) }}
-        onShowReport={() => setShowReport(true)}
-      />
+      {hudVisible.mission ? (
+        <div style={{ position: 'absolute', top: 60, right: 16, zIndex: 10 }}>
+          <button
+            onClick={() => toggleHud('mission')}
+            style={{
+              position: 'absolute', top: 6, right: 6, zIndex: 15,
+              width: 22, height: 22, borderRadius: '50%',
+              border: '1px solid rgba(255,255,255,0.15)',
+              background: 'rgba(0,0,0,0.3)', color: 'rgba(255,255,255,0.45)',
+              cursor: 'pointer', fontSize: 11,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'sans-serif',
+            }}
+          >−</button>
+          <MissionPanel
+            xp={xp} servedTotal={servedTotal} justServed={justServed}
+            shiftPhase={shiftPhase} shiftTimeLeft={shiftTimeLeft}
+            shiftServed={shiftServed} shiftMissed={shiftMissed}
+            onStartShift={startShift}
+            onEndShift={() => { endShift(true); setShowReport(true) }}
+            onShowReport={() => setShowReport(true)}
+          />
+        </div>
+      ) : restorePill('mission', '🎯', { top: 60, right: 16 })}
 
       {/* Mobile controls */}
       {isMobile && (
@@ -613,7 +711,7 @@ export default function App() {
         <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
         <DJLights />
 
-        <CameraRig target={position} mode={camMode} />
+        <CameraRig target={position} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} />
         <BeachClub />
         <ReceptionArea />
         <ValentinaBuggy />
@@ -627,7 +725,7 @@ export default function App() {
           missionActive={shiftPhase === 'active'}
           onPatienceOut={handlePatienceOut}
         />
-        <LocalPlayer position={position} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} />
+        {camMode !== 'pov' && <LocalPlayer position={position} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} />}
         {Object.entries(players).map(([id, player]) => {
           if (id === myId.current) return null
           const rOutfit = getOutfit(remoteProfiles[id]?.outfitId ?? 'ocean')
