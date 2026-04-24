@@ -857,19 +857,19 @@ function AthleteNPC({ position, rotation = 0, phase = 0 }: {
   const groupRef   = useRef<THREE.Group>(null)
   const cloned     = useRef(scene.clone(true))
 
+  // Model bounding box: Y min=-0.95 max=0.95 → lift by 0.95 so feet sit on ground
+  const BASE_Y = position[1] + 0.95
+
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.elapsedTime + phase
-    // Subtle breathing — scale y
-    groupRef.current.scale.y = 1 + Math.sin(t * 1.6) * 0.012
-    // Slight side sway
+    groupRef.current.scale.y    = 1 + Math.sin(t * 1.6) * 0.012
     groupRef.current.rotation.z = Math.sin(t * 0.9 + 1.1) * 0.018
-    // Weight shift — tiny y bob
-    groupRef.current.position.y = position[1] + Math.abs(Math.sin(t * 1.6)) * 0.03
+    groupRef.current.position.y = BASE_Y + Math.abs(Math.sin(t * 1.6)) * 0.03
   })
 
   return (
-    <group ref={groupRef} position={position} rotation={[0, rotation, 0]} scale={[1, 1, 1]}>
+    <group ref={groupRef} position={[position[0], BASE_Y, position[2]]} rotation={[0, rotation, 0]}>
       <primitive object={cloned.current} />
     </group>
   )
