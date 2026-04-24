@@ -360,6 +360,70 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
   )
 }
 
+// ─── Minimap ─────────────────────────────────────────────────────────────────
+const MM_W = 110, MM_H = 128
+const WX0 = -31, WX1 = 31, WZ0 = -46, WZ1 = 34
+const mmX = (v: number) => ((v - WX0) / (WX1 - WX0)) * MM_W
+const mmZ = (v: number) => ((v - WZ0) / (WZ1 - WZ0)) * MM_H
+const mmRect = (x1: number, x2: number, z1: number, z2: number) =>
+  ({ x: mmX(x1), y: mmZ(z1), width: mmX(x2) - mmX(x1), height: mmZ(z2) - mmZ(z1) })
+
+function Minimap({ position, facingRef, players, myId, customerNeeds, camMode }: {
+  position: PlayerState
+  facingRef: React.RefObject<number>
+  players: PlayersMap
+  myId: string
+  customerNeeds: Record<string, CustomerNeed>
+  camMode: CamMode
+}) {
+  if (camMode === 'pov') return null
+  const px = mmX(position.x), pz = mmZ(position.z)
+  const f  = facingRef.current ?? 0
+  const ax = px + Math.sin(f) * 7, ay = pz - Math.cos(f) * 7
+  return (
+    <div style={{
+      position: 'absolute', top: 72, left: 16, zIndex: 9,
+      borderRadius: 10, overflow: 'hidden',
+      border: '1.5px solid rgba(255,255,255,0.22)',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+    }}>
+      <svg width={MM_W} height={MM_H} style={{ display: 'block' }}>
+        {/* Sand */}
+        <rect width={MM_W} height={MM_H} fill="#c8a460" />
+        {/* Pool */}
+        <rect {...mmRect(-6, 6, -14.5, -5.5)} fill="#4dd0e1" opacity={0.85} rx={1} />
+        {/* Bar counter */}
+        <rect {...mmRect(14.8, 17.2, -10, 2)} fill="#d4870a" opacity={0.8} rx={1} />
+        {/* DJ booth */}
+        <rect {...mmRect(-5, 5, -22, -18)} fill="#1a1240" opacity={0.85} rx={1} />
+        {/* Reception */}
+        <rect {...mmRect(-6, 6, 20.5, 25.5)} fill="#b8b0a0" opacity={0.8} rx={1} />
+
+        {/* Remote players */}
+        {Object.entries(players).filter(([id]) => id !== myId).map(([id, p]) => (
+          <circle key={id} cx={mmX(p.x)} cy={mmZ(p.z)} r={3.5} fill="#4caf50" />
+        ))}
+
+        {/* NPCs */}
+        {NPCS.map(npc => (
+          <circle key={npc.id} cx={mmX(npc.position[0])} cy={mmZ(npc.position[2])} r={3} fill="#f39c12" />
+        ))}
+
+        {/* Customers needing service */}
+        {CUSTOMER_DEFS.map(c => {
+          const need = customerNeeds[c.id]
+          if (need === 'happy' || need === 'left') return null
+          return <circle key={c.id} cx={mmX(c.spawn[0])} cy={mmZ(c.spawn[2])} r={3} fill="#e74c3c" />
+        })}
+
+        {/* Local player */}
+        <circle cx={px} cy={pz} r={5.5} fill="#fff" stroke="#1565c0" strokeWidth={2} />
+        <line x1={px} y1={pz} x2={ax} y2={ay} stroke="#1565c0" strokeWidth={2.5} strokeLinecap="round" />
+      </svg>
+    </div>
+  )
+}
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const myId        = useRef('')
@@ -760,6 +824,26 @@ export default function App() {
       onWheel={e => { zoomRef.current = Math.min(3, Math.max(0.35, zoomRef.current * (1 - e.deltaY * 0.001))) }}
       onContextMenu={e => e.preventDefault()}
     >
+      <style>{`
+        @keyframes floatXp  { 0%{transform:translateY(0) translateX(-50%);opacity:1} 100%{transform:translateY(-70px) translateX(-50%);opacity:0} }
+        @keyframes slideDown { 0%{transform:translateX(-50%) translateY(-20px);opacity:0} 100%{transform:translateX(-50%) translateY(0);opacity:1} }
+      `}</style>
+
+      {/* Minimap */}
+      <Minimap position={position} facingRef={facingRef} players={players} myId={myId.current} customerNeeds={customerNeeds} camMode={camMode} />
+
+      {/* Floating XP */}
+      {justServed && (
+        <div style={{
+          position: 'absolute', top: '42%', left: '50%', zIndex: 30,
+          animation: 'floatXp 1s ease-out forwards',
+          color: '#f1c40f', fontSize: 26, fontWeight: 900,
+          fontFamily: '-apple-system, sans-serif',
+          textShadow: '0 2px 10px rgba(0,0,0,0.6)',
+          pointerEvents: 'none', whiteSpace: 'nowrap',
+        }}>+60 XP ⭐</div>
+      )}
+
       {/* POV crosshair + click-to-lock hint */}
       {camMode === 'pov' && (
         <>
@@ -876,7 +960,7 @@ export default function App() {
           fontFamily: '-apple-system, sans-serif', fontSize: 15, fontWeight: 700,
           border: '1.5px solid rgba(243,156,18,0.5)',
           boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-          animation: 'fadeIn 0.2s ease',
+          animation: 'slideDown 0.25s ease',
           pointerEvents: 'none',
         }}>{notification}</div>
       )}
