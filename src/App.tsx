@@ -65,9 +65,10 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }
   const { camera } = useThree()
   const cam = camera as THREE.PerspectiveCamera
   const m = useRef(mode); m.current = mode
-  const smooth   = useRef({ x: targetRef.current.x, z: targetRef.current.z })
-  const smoothY  = useRef(14)
-  const smoothDz = useRef(12)
+  const smooth     = useRef({ x: targetRef.current.x, z: targetRef.current.z })
+  const smoothY    = useRef(14)
+  const smoothDz   = useRef(12)
+  const smoothLook = useRef({ x: 0, y: 1.4, z: -8 })
 
   useFrame((_, delta) => {
     const zoom  = zoomRef.current ?? 1.0
@@ -79,28 +80,31 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }
 
     if (m.current === 'pov') {
       const angle = facingRef.current ?? 0
-      camera.position.x += (cur.x - camera.position.x) * 0.22
-      camera.position.y += (1.5   - camera.position.y) * 0.22
-      camera.position.z += (cur.z - camera.position.z) * 0.22
-      camera.lookAt(
-        cur.x + Math.sin(angle) * 8,
-        1.4,
-        cur.z - Math.cos(angle) * 8,
-      )
+      // Keep camYawRef in sync so joystick input is relative to where you're looking
+      camYawRef.current = -angle
+      // Smooth camera position to player eye level
+      camera.position.x += (cur.x - camera.position.x) * Math.min(1, 14 * delta)
+      camera.position.y += (1.55  - camera.position.y) * Math.min(1, 14 * delta)
+      camera.position.z += (cur.z - camera.position.z) * Math.min(1, 14 * delta)
+      // Smooth look-at target so turning feels fluid
+      const lx = cur.x + Math.sin(angle) * 8
+      const lz = cur.z - Math.cos(angle) * 8
+      smoothLook.current.x += (lx - smoothLook.current.x) * Math.min(1, 16 * delta)
+      smoothLook.current.z += (lz - smoothLook.current.z) * Math.min(1, 16 * delta)
+      camera.lookAt(smoothLook.current.x, 1.4, smoothLook.current.z)
       const povFov = 75 + Math.min(speed / 5.2, 1) * 10
       cam.fov += (povFov / zoom - cam.fov) * Math.min(1, 6 * delta)
       cam.updateProjectionMatrix()
       return
     }
 
-    // Auto-follow: swing camera behind player whenever moving
-    // Rate matches character TURN_SPD so camera never lags behind rotation
+    // Lazy auto-follow: gently swing camera behind player when moving
     if (speed > 0.15) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
       while (diff > Math.PI) diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 6 * delta)
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 1.5 * delta)
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
