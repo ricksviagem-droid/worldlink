@@ -188,8 +188,15 @@ function PalmTree({ position, lean = 0, seed = 0 }: {
   lean?: number
   seed?: number
 }) {
+  const treeRef = useRef<THREE.Group>(null)
+  useFrame(({ clock }) => {
+    if (!treeRef.current) return
+    const t = clock.elapsedTime * 0.28 + seed * 1.9
+    treeRef.current.rotation.z = Math.sin(t) * 0.022
+    treeRef.current.rotation.x = Math.sin(t * 0.68 + 1.3) * 0.014
+  })
   return (
-    <group position={position}>
+    <group ref={treeRef} position={position}>
       {/* Trunk — only this casts shadow */}
       <mesh
         position={[lean * 0.08, 2.8, lean * 0.04]}
@@ -281,6 +288,41 @@ function Umbrella({ position, color }: { position: [number, number, number]; col
         )
       })}
     </group>
+  )
+}
+
+function ShoreFoam() {
+  const COUNT   = 80
+  const ptsRef  = useRef<THREE.Points>(null)
+  const origPos = useRef((() => {
+    const a = new Float32Array(COUNT * 3)
+    for (let i = 0; i < COUNT; i++) {
+      a[i*3]   = (Math.random() - 0.5) * 82
+      a[i*3+1] = 0.06
+      a[i*3+2] = -46.5 - Math.random() * 2.5
+    }
+    return a
+  })())
+  const phases = useRef(Array.from({ length: COUNT }, () => Math.random() * Math.PI * 2))
+  useFrame(({ clock }) => {
+    if (!ptsRef.current) return
+    const t    = clock.elapsedTime
+    const attr = ptsRef.current.geometry.attributes.position as THREE.BufferAttribute
+    const o    = origPos.current
+    for (let i = 0; i < COUNT; i++) {
+      const wave = Math.sin(t * 0.85 + phases.current[i]) * 1.2
+      attr.setXYZ(i, o[i*3], o[i*3+1], o[i*3+2] + wave)
+    }
+    attr.needsUpdate = true
+    ;(ptsRef.current.material as THREE.PointsMaterial).opacity = 0.45 + Math.sin(t * 0.85) * 0.28
+  })
+  return (
+    <points ref={ptsRef}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[origPos.current, 3]} />
+      </bufferGeometry>
+      <pointsMaterial color="#ddf4ff" size={0.28} transparent opacity={0.5} sizeAttenuation depthWrite={false} />
+    </points>
   )
 }
 
@@ -729,6 +771,7 @@ export function BeachClub() {
       <Ground />
       <Ocean />
       <WaveAnimation />
+      <ShoreFoam />
       <Pool />
       <Bar />
       <DJBooth />

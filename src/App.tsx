@@ -199,25 +199,25 @@ function DayNight() {
 
 // ─── Disco lights ────────────────────────────────────────────────────────────
 function DJLights() {
-  const refs = [
-    useRef<THREE.PointLight>(null),
-    useRef<THREE.PointLight>(null),
-    useRef<THREE.PointLight>(null),
-  ]
+  const refs = useRef<(THREE.PointLight | null)[]>([null, null, null, null, null])
   useFrame(({ clock }) => {
-    const t = clock.elapsedTime
-    refs.forEach((r, i) => {
-      if (!r.current) return
-      const angle = t * 0.65 + (i * Math.PI * 2) / 3
-      r.current.position.x = Math.cos(angle) * 5
-      r.current.position.z = -19 + Math.sin(angle * 1.3) * 1.5
-      r.current.color.setHSL((t * 0.07 + i * 0.33) % 1, 1, 0.55)
+    const t    = clock.elapsedTime
+    const beat = Math.pow(Math.max(0, Math.cos(t * 116 / 60 * Math.PI * 2)), 3)
+    refs.current.forEach((r, i) => {
+      if (!r) return
+      const angle = t * 0.55 + (i * Math.PI * 2) / 5
+      r.position.x = Math.cos(angle) * 5.5
+      r.position.y = 5 + beat * 1.8
+      r.position.z = -19 + Math.sin(angle * 1.15) * 2.2
+      r.color.setHSL((t * 0.08 + i * 0.2) % 1, 1, 0.55)
+      r.intensity = 10 + beat * 22
     })
   })
   return (
     <>
-      {refs.map((r, i) => (
-        <pointLight key={i} ref={r} position={[0, 5, -19]} intensity={12} distance={20} decay={2} />
+      {[0, 1, 2, 3, 4].map(i => (
+        <pointLight key={i} ref={el => { refs.current[i] = el }}
+          position={[0, 5, -19]} intensity={10} distance={24} decay={2} />
       ))}
     </>
   )
