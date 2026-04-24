@@ -188,38 +188,38 @@ function PalmTree({ position, lean = 0, seed = 0 }: {
   lean?: number
   seed?: number
 }) {
-  const frondCount = 8
-  const frondAngles = Array.from({ length: frondCount }, (_, i) => (i / frondCount) * 360)
   return (
     <group position={position}>
-      {/* Trunk with ring texture suggestion */}
-      <mesh position={[lean * 0.1, 2.6, 0]} rotation={[0, 0, lean * 0.055]} castShadow>
-        <cylinderGeometry args={[0.155, 0.29, 5.4, 8]} />
-        <meshStandardMaterial color="#8a6312" roughness={0.9} />
+      {/* Trunk — only this casts shadow */}
+      <mesh
+        position={[lean * 0.08, 2.8, lean * 0.04]}
+        rotation={[lean * 0.04, 0, lean * 0.052]}
+        castShadow
+      >
+        <cylinderGeometry args={[0.14, 0.27, 5.6, 8]} />
+        <meshStandardMaterial color="#8a6314" roughness={0.88} />
       </mesh>
-      {[0.8, 1.5, 2.2, 2.9, 3.6, 4.3].map((y, i) => (
-        <mesh key={i} position={[lean * 0.06 * (i / 5), y, 0]}>
-          <torusGeometry args={[0.21 + (5 - i) * 0.013, 0.028, 5, 10]} />
-          <meshStandardMaterial color="#6a4c0e" roughness={0.9} />
-        </mesh>
-      ))}
-      {/* Fronds */}
-      {frondAngles.map((deg, i) => {
+      {/* Crown blob — gives the tree visual mass */}
+      <mesh position={[lean * 0.08, 5.6, lean * 0.04]}>
+        <sphereGeometry args={[1.1, 7, 5]} />
+        <meshStandardMaterial color="#2a8030" roughness={0.85} />
+      </mesh>
+      {/* Fronds — plane geometry, NO castShadow, DoubleSide */}
+      {Array.from({ length: 7 }, (_, i) => {
+        const deg = (i / 7) * 360 + seed * 18
         const rad = (deg * Math.PI) / 180
-        const sway = Math.sin(seed + i) * 0.06
         return (
           <mesh
             key={i}
-            position={[
-              lean * 0.1 + Math.cos(rad) * 1.65,
-              5.25 - (i % 3) * 0.08,
-              Math.sin(rad) * 1.65,
-            ]}
-            rotation={[-0.44 + (i % 2) * 0.09 + sway, rad, (i % 3) * 0.04]}
-            castShadow
+            position={[lean * 0.08 + Math.cos(rad) * 1.0, 5.55, lean * 0.04 + Math.sin(rad) * 1.0]}
+            rotation={[-0.52 + (i % 2) * 0.12, rad, 0]}
           >
-            <boxGeometry args={[0.14, 0.05, 3.3]} />
-            <meshStandardMaterial color={i % 2 === 0 ? '#28782a' : '#339636'} roughness={0.7} />
+            <planeGeometry args={[0.6, 3.0]} />
+            <meshStandardMaterial
+              color={i % 2 === 0 ? '#2a8030' : '#349038'}
+              roughness={0.78}
+              side={THREE.DoubleSide}
+            />
           </mesh>
         )
       })}
@@ -466,17 +466,11 @@ export function BeachClub() {
       <Umbrella position={[-3,  0, -35]}   color="#7ec8e3" />
       <Umbrella position={[3,   0, -35]}   color="#ff9966" />
 
-      {/* Tiki torches — DJ area */}
-      <TikiTorch position={[-7,  0, -17]} />
-      <TikiTorch position={[7,   0, -17]} />
-      <TikiTorch position={[-12, 0, -22]} />
-      <TikiTorch position={[12,  0, -22]} />
-      {/* Pool torches */}
-      <TikiTorch position={[-7, 0, -4]} />
-      <TikiTorch position={[7,  0, -4]} />
-      {/* Beach torches */}
-      <TikiTorch position={[-16, 0, -26]} />
-      <TikiTorch position={[16,  0, -26]} />
+      {/* Tiki torches — 4 only (performance) */}
+      <TikiTorch position={[-7, 0, -17]} />
+      <TikiTorch position={[7,  0, -17]} />
+      <TikiTorch position={[-7, 0,  -4]} />
+      <TikiTorch position={[7,  0,  -4]} />
     </>
   )
 }
