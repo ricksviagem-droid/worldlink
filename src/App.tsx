@@ -98,13 +98,13 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }
       return
     }
 
-    // Lazy auto-follow: gently swing camera behind player when moving
-    if (speed > 0.15) {
+    // Very lazy auto-follow — only when moving at real speed, avoids feedback loop on start
+    if (speed > 1.8) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
       while (diff > Math.PI) diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 1.5 * delta)
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 0.5 * delta)
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
@@ -173,7 +173,7 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 5.2, ACCEL = 24, DECEL = 20, TURN_SPD = Math.PI * 5
+    const MAX_SPEED = 5.2, ACCEL = 22, DECEL = 18, TURN_SPD = Math.PI * 2.5
 
     // Raw screen-space input (up = -iz, right = +ix)
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
@@ -183,22 +183,26 @@ function MovementSystem({
     if (keys['a'] || keys['ArrowLeft'])  ix -= 1
     if (keys['d'] || keys['ArrowRight']) ix += 1
 
-    // Rotate input by camera yaw → camera-relative world movement
+    // Snapshot camera yaw once per frame — prevents mid-frame feedback loop
     const yaw = camYawRef.current
     const wix = iz * Math.sin(yaw) + ix * Math.cos(yaw)
     const wiz = iz * Math.cos(yaw) - ix * Math.sin(yaw)
 
     const len = Math.sqrt(wix * wix + wiz * wiz)
-    const hasInput = len > 0.01
+    // Separate thresholds: low for velocity, higher for rotation (avoids spin on light touch)
+    const hasInput  = len > 0.05
+    const hasTurn   = len > 0.2
     if (hasInput) {
       const nx = wix / len, nz = wiz / len
       velocityRef.current.x += (nx * MAX_SPEED - velocityRef.current.x) * Math.min(1, ACCEL * delta)
       velocityRef.current.z += (nz * MAX_SPEED - velocityRef.current.z) * Math.min(1, ACCEL * delta)
-      const targetFacing = Math.atan2(nx, -nz)
-      let diff = targetFacing - facingRef.current
-      while (diff > Math.PI) diff -= Math.PI * 2
-      while (diff < -Math.PI) diff += Math.PI * 2
-      facingRef.current += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPD * delta)
+      if (hasTurn) {
+        const targetFacing = Math.atan2(nx, -nz)
+        let diff = targetFacing - facingRef.current
+        while (diff > Math.PI) diff -= Math.PI * 2
+        while (diff < -Math.PI) diff += Math.PI * 2
+        facingRef.current += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPD * delta)
+      }
     } else {
       velocityRef.current.x *= Math.max(0, 1 - DECEL * delta)
       velocityRef.current.z *= Math.max(0, 1 - DECEL * delta)
