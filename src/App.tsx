@@ -16,7 +16,7 @@ import { ShiftReport } from './ShiftReport'
 import { ReceptionArea } from './ReceptionArea'
 import { ValentinaBuggy } from './ValentinaBuggy'
 import { ProfileSetup } from './ProfileSetup'
-import { ProfileCard } from './ProfileCard'
+import { ProfileCard, type CardProfile } from './ProfileCard'
 import { Shop } from './Shop'
 import { getOutfit, STORAGE_KEY, type PlayerProfile } from './outfits'
 
@@ -474,6 +474,7 @@ export default function App() {
   const [nearbyPlayerId, setNearbyPlayerId] = useState<string | null>(null)
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
   const [matches, setMatches] = useState<Set<string>>(new Set())
+  const [likedNpcIds, setLikedNpcIds] = useState<Set<string>>(new Set())
   const [showShop, setShowShop] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
 
@@ -1005,18 +1006,60 @@ export default function App() {
       {/* Chat panel */}
       {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
 
+      {/* NPC profile card — shown when nearby and chat is closed */}
+      {nearbyNpc && !activeChatNpc && (() => {
+        const npcCard: CardProfile = {
+          name: nearbyNpc.name,
+          bodyColor: nearbyNpc.bodyColor,
+          headColor: nearbyNpc.headColor,
+          bio: nearbyNpc.bio,
+          age: nearbyNpc.age,
+          role: nearbyNpc.role,
+          personality: nearbyNpc.personality,
+          interests: nearbyNpc.interests,
+          story: nearbyNpc.story,
+          isNpc: true,
+        }
+        return (
+          <ProfileCard
+            profile={npcCard}
+            myInterests={myProfile?.interests ?? []}
+            isLiked={likedNpcIds.has(nearbyNpc.id)}
+            isMatch={false}
+            onLike={() => {
+              setLikedNpcIds(prev => new Set([...prev, nearbyNpc.id]))
+              setNotification(`❤️ Você curtiu ${nearbyNpc.name}!`)
+            }}
+            onChat={() => { setActiveChatNpc(nearbyNpc); chatOpenRef.current = true }}
+            onClose={() => setNearbyNpc(null)}
+          />
+        )
+      })()}
+
       {/* Nearby player profile card */}
-      {nearbyPlayerId && remoteProfiles[nearbyPlayerId] && (
-        <ProfileCard
-          profile={remoteProfiles[nearbyPlayerId]}
-          myInterests={myProfile?.interests ?? []}
-          isLiked={likedIds.has(nearbyPlayerId)}
-          isMatch={matches.has(nearbyPlayerId)}
-          onLike={() => handleLike(nearbyPlayerId)}
-          onSuperLike={() => handleLike(nearbyPlayerId, true)}
-          onClose={() => setNearbyPlayerId(null)}
-        />
-      )}
+      {!nearbyNpc && nearbyPlayerId && remoteProfiles[nearbyPlayerId] && (() => {
+        const rp = remoteProfiles[nearbyPlayerId]
+        const outfit = getOutfit(rp.outfitId)
+        const playerCard: CardProfile = {
+          name: rp.name,
+          faceEmoji: rp.faceEmoji,
+          bodyColor: outfit.bodyColor,
+          headColor: outfit.headColor,
+          bio: rp.bio,
+          interests: rp.interests,
+          isNpc: false,
+        }
+        return (
+          <ProfileCard
+            profile={playerCard}
+            myInterests={myProfile?.interests ?? []}
+            isLiked={likedIds.has(nearbyPlayerId)}
+            isMatch={matches.has(nearbyPlayerId)}
+            onLike={() => handleLike(nearbyPlayerId)}
+            onClose={() => setNearbyPlayerId(null)}
+          />
+        )
+      })()}
 
       {/* Mission / shift panel */}
       {hudVisible.mission ? (

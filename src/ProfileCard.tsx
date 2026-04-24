@@ -1,106 +1,197 @@
-import { getOutfit, type PlayerProfile } from './outfits'
+import { useState } from 'react'
+
+export interface CardProfile {
+  name: string
+  faceEmoji?: string
+  bodyColor: string
+  headColor: string
+  bio?: string
+  age?: number
+  role?: string
+  city?: string
+  personality?: string
+  interests: string[]
+  story?: string
+  isNpc: boolean
+}
 
 interface Props {
-  profile: PlayerProfile
+  profile: CardProfile
   myInterests: string[]
   isLiked: boolean
   isMatch: boolean
   onLike: () => void
-  onSuperLike: () => void
+  onChat?: () => void
   onClose: () => void
 }
 
-export function ProfileCard({ profile, myInterests, isLiked, isMatch, onLike, onSuperLike, onClose }: Props) {
-  const outfit = getOutfit(profile.outfitId)
+type Tab = 'about' | 'interests' | 'story'
+
+export function ProfileCard({ profile, myInterests, isLiked, isMatch, onLike, onChat, onClose }: Props) {
+  const [tab, setTab] = useState<Tab>('about')
   const common = profile.interests.filter(i => myInterests.includes(i))
   const rest   = profile.interests.filter(i => !myInterests.includes(i))
 
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'about',     label: 'Sobre' },
+    { id: 'interests', label: 'Interesses' },
+    ...(profile.story ? [{ id: 'story' as Tab, label: 'História' }] : []),
+  ]
+
   return (
     <div style={{
-      position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
-      zIndex: 30, width: 230,
-      background: 'rgba(6,6,18,0.93)', backdropFilter: 'blur(18px)',
-      borderRadius: 22, padding: '20px 18px',
-      border: isMatch ? '1.5px solid #f39c12' : '1.5px solid rgba(255,255,255,0.11)',
-      boxShadow: isMatch ? '0 0 32px rgba(243,156,18,0.28)' : '0 8px 40px rgba(0,0,0,0.5)',
-      fontFamily: '-apple-system, sans-serif', color: '#fff',
-      animation: 'fadeInRight 0.2s ease',
+      position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+      zIndex: 30, width: 256,
+      background: 'rgba(5,5,16,0.96)', backdropFilter: 'blur(22px)',
+      borderRadius: 24,
+      border: isMatch ? '1.5px solid #f39c12' : '1.5px solid rgba(255,255,255,0.09)',
+      boxShadow: isMatch
+        ? '0 0 40px rgba(243,156,18,0.2), 0 16px 56px rgba(0,0,0,0.65)'
+        : '0 16px 56px rgba(0,0,0,0.65)',
+      fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', color: '#fff',
+      overflow: 'hidden',
+      animation: 'fadeInRight 0.22s ease',
     }}>
-      <button onClick={onClose} style={{
-        position: 'absolute', top: 10, right: 12,
-        background: 'none', border: 'none', color: 'rgba(255,255,255,0.28)',
-        cursor: 'pointer', fontSize: 20, lineHeight: 1,
-      }}>×</button>
 
-      {isMatch && (
-        <div style={{
-          textAlign: 'center', color: '#f39c12', fontSize: 11, fontWeight: 800,
-          letterSpacing: 1.5, marginBottom: 10,
-          textShadow: '0 0 12px rgba(243,156,18,0.5)',
-        }}>✨ MATCH!</div>
-      )}
-
-      {/* Avatar */}
-      <div style={{ textAlign: 'center', marginBottom: 14 }}>
-        <div style={{
-          width: 62, height: 62, borderRadius: '50%', margin: '0 auto 8px',
-          background: outfit.bodyColor, fontSize: 26,
+      {/* Gradient header */}
+      <div style={{
+        height: 88,
+        background: `linear-gradient(135deg, ${profile.headColor}bb 0%, ${profile.bodyColor}99 100%)`,
+        position: 'relative',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      }}>
+        {/* Close */}
+        <button onClick={onClose} style={{
+          position: 'absolute', top: 9, right: 10,
+          background: 'rgba(0,0,0,0.35)', border: 'none', color: 'rgba(255,255,255,0.85)',
+          cursor: 'pointer', fontSize: 15, width: 26, height: 26, borderRadius: '50%',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: '3px solid rgba(255,255,255,0.13)',
-        }}>{profile.faceEmoji}</div>
-        <div style={{ fontWeight: 700, fontSize: 16 }}>{profile.name}</div>
-        {profile.bio && (
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 5, lineHeight: 1.45 }}>
-            {profile.bio}
+        }}>×</button>
+
+        {isMatch && (
+          <div style={{
+            position: 'absolute', top: 10, left: 11,
+            background: 'rgba(243,156,18,0.92)', borderRadius: 10, padding: '2px 9px',
+            fontSize: 9, fontWeight: 800, letterSpacing: 1.2, color: '#111',
+          }}>✨ MATCH</div>
+        )}
+
+        {/* Avatar bubble — sits half in header, half below */}
+        <div style={{
+          width: 70, height: 70, borderRadius: '50%',
+          background: `radial-gradient(circle at 38% 32%, ${profile.headColor}, ${profile.bodyColor})`,
+          border: '3px solid rgba(255,255,255,0.22)',
+          fontSize: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', top: 35,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
+          flexShrink: 0,
+        }}>
+          {profile.faceEmoji ?? profile.name[0]}
+        </div>
+      </div>
+
+      {/* Name + info */}
+      <div style={{ textAlign: 'center', paddingTop: 42, paddingBottom: 10, paddingInline: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 7 }}>
+          <span style={{ fontWeight: 700, fontSize: 17 }}>{profile.name}</span>
+          {profile.age != null && (
+            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.42)' }}>{profile.age}</span>
+          )}
+        </div>
+        {(profile.role || profile.city) && (
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.38)', marginTop: 3, letterSpacing: 0.2 }}>
+            {profile.role ?? `📍 ${profile.city}`}
+          </div>
+        )}
+        {profile.personality && (
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.26)', marginTop: 3, fontStyle: 'italic' }}>
+            {profile.personality}
           </div>
         )}
       </div>
 
-      {/* Common interests */}
-      {common.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 9, color: '#f39c12', letterSpacing: 1.5, marginBottom: 5, fontWeight: 700 }}>
-            EM COMUM
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {common.map(i => (
-              <span key={i} style={{
-                fontSize: 10, padding: '3px 8px', borderRadius: 10,
-                background: 'rgba(243,156,18,0.18)', color: '#f39c12',
-                border: '1px solid rgba(243,156,18,0.35)',
-              }}>{i}</span>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Tab bar */}
+      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.07)', paddingInline: 6 }}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            flex: 1, padding: '8px 2px', background: 'none', border: 'none', cursor: 'pointer',
+            color: tab === t.id ? '#f39c12' : 'rgba(255,255,255,0.3)',
+            fontSize: 11, fontWeight: tab === t.id ? 700 : 400, letterSpacing: 0.2,
+            borderBottom: tab === t.id ? '2px solid #f39c12' : '2px solid transparent',
+            transition: 'color 0.15s, border-color 0.15s',
+          }}>{t.label}</button>
+        ))}
+      </div>
 
-      {/* Other interests */}
-      {rest.length > 0 && (
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {rest.map(i => (
-              <span key={i} style={{
-                fontSize: 10, padding: '3px 8px', borderRadius: 10,
-                background: 'rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.45)',
-              }}>{i}</span>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Tab content */}
+      <div style={{ padding: '13px 16px', minHeight: 92 }}>
+        {tab === 'about' && (
+          profile.bio
+            ? <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.68)', lineHeight: 1.58, margin: 0 }}>{profile.bio}</p>
+            : <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic', margin: 0 }}>Sem bio ainda.</p>
+        )}
 
-      {/* Buttons */}
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={onSuperLike} title="Super Like" style={{
-          flex: 1, padding: '11px 0', borderRadius: 12, cursor: 'pointer', fontSize: 18,
-          background: 'rgba(243,156,18,0.1)', border: '1.5px solid rgba(243,156,18,0.4)',
-          transition: 'all 0.15s',
-        }}>⭐</button>
+        {tab === 'interests' && (
+          <div>
+            {common.length > 0 && (
+              <div style={{ marginBottom: 9 }}>
+                <div style={{ fontSize: 9, color: '#f39c12', letterSpacing: 1.6, marginBottom: 5, fontWeight: 700 }}>
+                  EM COMUM
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {common.map(i => (
+                    <span key={i} style={{
+                      fontSize: 10, padding: '3px 8px', borderRadius: 10,
+                      background: 'rgba(243,156,18,0.15)', color: '#f39c12',
+                      border: '1px solid rgba(243,156,18,0.28)',
+                    }}>{i}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {rest.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {rest.map(i => (
+                  <span key={i} style={{
+                    fontSize: 10, padding: '3px 8px', borderRadius: 10,
+                    background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.38)',
+                  }}>{i}</span>
+                ))}
+              </div>
+            )}
+            {profile.interests.length === 0 && (
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontStyle: 'italic', margin: 0 }}>
+                Sem interesses cadastrados.
+              </p>
+            )}
+          </div>
+        )}
+
+        {tab === 'story' && profile.story && (
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.62)', lineHeight: 1.62, margin: 0 }}>
+            {profile.story}
+          </p>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 8, padding: '0 13px 13px' }}>
         <button onClick={onLike} disabled={isLiked} style={{
-          flex: 2.5, padding: '11px 0', borderRadius: 12, cursor: isLiked ? 'default' : 'pointer',
+          flex: 1, padding: '10px 0', borderRadius: 14,
+          cursor: isLiked ? 'default' : 'pointer',
           border: 'none', fontSize: 13, fontWeight: 700, color: '#fff',
-          background: isLiked ? 'rgba(231,76,60,0.45)' : '#e74c3c',
-          transition: 'all 0.15s',
+          background: isLiked ? 'rgba(231,76,60,0.3)' : 'rgba(231,76,60,0.85)',
+          transition: 'background 0.15s',
         }}>{isLiked ? '❤️ Curtido' : '❤️ Curtir'}</button>
+
+        {onChat && (
+          <button onClick={onChat} style={{
+            flex: 1, padding: '10px 0', borderRadius: 14, cursor: 'pointer',
+            border: '1.5px solid rgba(255,255,255,0.15)', fontSize: 13, fontWeight: 700,
+            color: 'rgba(255,255,255,0.85)', background: 'rgba(255,255,255,0.07)',
+            transition: 'background 0.15s',
+          }}>💬 Falar</button>
+        )}
       </div>
     </div>
   )
