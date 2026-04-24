@@ -10,11 +10,11 @@ export const SERVE_DISTANCE = 4.5
 export const PATIENCE_SECONDS = 40
 
 export const CUSTOMER_DEFS = [
-  { id: 'c1', bodyColor: '#e74c3c', headColor: '#f0c27f', spawn: [2, 0, -5] as [number, number, number] },
-  { id: 'c2', bodyColor: '#27ae60', headColor: '#d4a076', spawn: [-4, 0, -4] as [number, number, number] },
-  { id: 'c3', bodyColor: '#8e44ad', headColor: '#f0c27f', spawn: [7, 0, -5] as [number, number, number] },
-  { id: 'c4', bodyColor: '#16a085', headColor: '#e8b88a', spawn: [1, 0, -1] as [number, number, number] },
-  { id: 'c5', bodyColor: '#d35400', headColor: '#c8855a', spawn: [11, 0, -4] as [number, number, number] },
+  { id: 'c1', bodyColor: '#e74c3c', headColor: '#f0c27f', hairColor: '#3a1808', pantsColor: '#1a1828', spawn: [2, 0, -5] as [number, number, number] },
+  { id: 'c2', bodyColor: '#27ae60', headColor: '#d4a076', hairColor: '#2a1a08', pantsColor: '#c0a870', spawn: [-4, 0, -4] as [number, number, number] },
+  { id: 'c3', bodyColor: '#8e44ad', headColor: '#f0c27f', hairColor: '#1a0818', pantsColor: '#1a0a1a', spawn: [7, 0, -5] as [number, number, number] },
+  { id: 'c4', bodyColor: '#16a085', headColor: '#e8b88a', hairColor: '#5a3010', pantsColor: '#f0e8d8', spawn: [1, 0, -1] as [number, number, number] },
+  { id: 'c5', bodyColor: '#d35400', headColor: '#c8855a', hairColor: '#0a0808', pantsColor: '#1a1a18', spawn: [11, 0, -4] as [number, number, number] },
 ]
 
 const NEED_ICONS: Record<CustomerNeed, string> = {
@@ -91,7 +91,7 @@ function CustomerCharacter({
 
   return (
     <group ref={groupRef} position={def.spawn}>
-      <CharacterMesh bodyColor={def.bodyColor} headColor={def.headColor} />
+      <CharacterMesh bodyColor={def.bodyColor} headColor={def.headColor} hairColor={def.hairColor} pantsColor={def.pantsColor} />
       <Html position={[0, 2.4, 0]} center distanceFactor={12}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 52 }}>
           {/* Patience bar */}

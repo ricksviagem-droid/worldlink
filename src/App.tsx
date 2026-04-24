@@ -133,7 +133,9 @@ function DJLights() {
 }
 
 // ─── Players ─────────────────────────────────────────────────────────────────
-function LocalPlayer({ position, bodyColor, headColor }: { position: PlayerState; bodyColor: string; headColor: string }) {
+function LocalPlayer({ position, bodyColor, headColor, hairColor, pantsColor }: {
+  position: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string
+}) {
   const movingRef = useRef(false)
   const prevPos = useRef(position)
   const stopTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -147,13 +149,13 @@ function LocalPlayer({ position, bodyColor, headColor }: { position: PlayerState
 
   return (
     <group position={[position.x, 0, position.z]}>
-      <CharacterMesh bodyColor={bodyColor} headColor={headColor} movingRef={movingRef} />
+      <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
     </group>
   )
 }
 
-function RemotePlayer({ targetPosition, bodyColor, headColor, name }: {
-  targetPosition: PlayerState; bodyColor: string; headColor: string; name?: string
+function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsColor, name }: {
+  targetPosition: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string; name?: string
 }) {
   const groupRef = useRef<THREE.Group>(null)
   const lp = useRef({ x: targetPosition.x, z: targetPosition.z })
@@ -170,7 +172,7 @@ function RemotePlayer({ targetPosition, bodyColor, headColor, name }: {
   })
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
-      <CharacterMesh bodyColor={bodyColor} headColor={headColor} movingRef={movingRef} />
+      <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
       <Html position={[0, 2.4, 0]} center distanceFactor={12}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 5,
@@ -225,7 +227,7 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
 
   return (
     <group ref={groupRef} position={npc.position}>
-      <CharacterMesh bodyColor={npc.bodyColor} headColor={npc.headColor} movingRef={movingRef} />
+      <CharacterMesh bodyColor={npc.bodyColor} headColor={npc.headColor} hairColor={npc.hairColor} pantsColor={npc.pantsColor} movingRef={movingRef} />
       <Html position={[0, 2.2, 0]} center distanceFactor={12}>
         <div style={{
           background: nearby ? 'rgba(243,156,18,0.9)' : 'rgba(0,0,0,0.65)',
@@ -819,12 +821,12 @@ export default function App() {
           missionActive={shiftPhase === 'active'}
           onPatienceOut={handlePatienceOut}
         />
-        {camMode !== 'pov' && <LocalPlayer position={position} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} />}
+        {camMode !== 'pov' && <LocalPlayer position={position} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} hairColor={myOutfit.hairColor} pantsColor={myOutfit.pantsColor} />}
         {Object.entries(players).map(([id, player]) => {
           if (id === myId.current) return null
           const rProfile = remoteProfiles[id]
           const rOutfit = getOutfit(rProfile?.outfitId ?? 'ocean')
-          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} name={rProfile?.name} />
+          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} hairColor={rOutfit.hairColor} pantsColor={rOutfit.pantsColor} name={rProfile?.name} />
         })}
       </Canvas>
     </div>
