@@ -1,7 +1,6 @@
 class AudioSystem {
   private ctx: AudioContext | null = null
   private master: GainNode | null = null
-  private beatTimer: ReturnType<typeof setTimeout> | null = null
   private noiseCache: AudioBuffer | null = null
   private started = false
 
@@ -10,12 +9,11 @@ class AudioSystem {
     this.started = true
     this.ctx = new AudioContext()
     this.master = this.ctx.createGain()
-    this.master.gain.value = 0.22
+    this.master.gain.value = 0.2
     this.master.connect(this.ctx.destination)
     this.noiseCache = this.genNoise()
     this.startOcean()
-    this.startAmbientPad()
-    this.startDJBeat()
+    this.startBeat()
   }
 
   private genNoise(): AudioBuffer {
@@ -26,181 +24,154 @@ class AudioSystem {
     let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0
     for (let i = 0; i < size; i++) {
       const w = Math.random() * 2 - 1
-      b0 = 0.99886*b0 + w*0.0555179; b1 = 0.99332*b1 + w*0.0750759
-      b2 = 0.96900*b2 + w*0.1538520; b3 = 0.86650*b3 + w*0.3104856
-      b4 = 0.55000*b4 + w*0.5329522; b5 = -0.7616*b5 - w*0.0168980
-      d[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11; b6 = w*0.115926
+      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759
+      b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856
+      b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980
+      d[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11; b6=w*0.115926
     }
     return buf
   }
 
   private startOcean() {
-    if (!this.ctx || !this.master) return
+    if (!this.ctx||!this.master) return
     const src = this.ctx.createBufferSource()
-    src.buffer = this.noiseCache
-    src.loop = true
+    src.buffer = this.noiseCache; src.loop = true
     const lpf = this.ctx.createBiquadFilter()
-    lpf.type = 'lowpass'; lpf.frequency.value = 320; lpf.Q.value = 0.9
+    lpf.type='lowpass'; lpf.frequency.value=300
     const lfo = this.ctx.createOscillator()
-    const lfoGain = this.ctx.createGain()
-    lfo.frequency.value = 0.07; lfoGain.gain.value = 0.14
-    lfo.connect(lfoGain)
-    const amp = this.ctx.createGain()
-    amp.gain.value = 0.18
-    lfoGain.connect(amp.gain)
+    const lfoG = this.ctx.createGain()
+    lfo.frequency.value=0.06; lfoG.gain.value=0.12
+    lfo.connect(lfoG)
+    const amp = this.ctx.createGain(); amp.gain.value=0.14
+    lfoG.connect(amp.gain)
     src.connect(lpf); lpf.connect(amp); amp.connect(this.master)
     lfo.start(); src.start()
   }
 
-  private startAmbientPad() {
-    if (!this.ctx || !this.master) return
-    // Warm lofi chord: A2 C#3 E3 A3
-    const freqs = [110, 138.59, 164.81, 220]
-    freqs.forEach((freq, i) => {
-      const osc = this.ctx!.createOscillator()
-      const gain = this.ctx!.createGain()
-      const lpf = this.ctx!.createBiquadFilter()
-      osc.type = i % 2 === 0 ? 'sine' : 'triangle'
-      osc.frequency.value = freq
-      lpf.type = 'lowpass'; lpf.frequency.value = 600
-      gain.gain.value = 0.018 - i * 0.003
-      osc.connect(lpf); lpf.connect(gain); gain.connect(this.master!)
-      osc.start(this.ctx!.currentTime + i * 0.1)
-    })
-  }
+  // ── House / Dance beat 126 BPM ──────────────────────────────────────────
+  private startBeat() {
+    const BPM = 126
+    const s16 = 60 / BPM / 4        // 16th note duration
+    const STEPS = 32                  // 2 measures of 16 steps
 
-  // ── DJ Beat ──────────────────────────────────────────────────────────────
-  private startDJBeat() {
-    const BPM = 98
-    const beat = 60 / BPM
-    const eighth = beat / 2
-    const lookahead = 0.12
-    let next = this.ctx!.currentTime + 1.0
+    // Kick: 4-on-floor (steps 0,8,16,24)
+    const kickPat  = [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+                      1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0]
+    // Snare: 2+4
+    const snarePat = [0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+                      0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,1]
+    // Hi-hat: 16ths, accented on 8ths
+    const hatVol   = [.10,.05,.10,.05, .12,.05,.10,.05,
+                      .10,.05,.10,.05, .12,.05,.10,.08,
+                      .10,.05,.10,.05, .12,.05,.10,.05,
+                      .10,.05,.10,.05, .12,.05,.10,.05]
+    // Open hat on off-beats
+    const openPat  = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0,
+                      0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0]
+    // Bass: A minor (A2=110, E2=82.4, C2=65.4, D2=73.4)
+    const bassFreq = [110,0,0,0, 0,0,82.4,0, 0,0,110,0, 0,0,0,0,
+                       73.4,0,0,0, 0,0,82.4,0, 0,0,110,0, 0,65.4,0,0]
+    // Synth lead melody: A major (A4=440, C#5=554, E5=659, B4=494, F#5=740)
+    const leadFreq = [659,0,0,659, 0,554,0,0, 494,0,659,0, 0,0,0,0,
+                      440,0,0,440, 0,494,0,554, 659,0,0,440, 0,0,0,0]
+
+    let next = this.ctx!.currentTime + 0.3
     let step = 0
-
-    // A minor pentatonic bass line (2 measures cycling)
-    const bassLine = [110, 0, 130.81, 0, 146.83, 0, 110, 0,
-                      196.00, 0, 164.81, 0, 130.81, 0, 110, 0]
+    const lookahead = 0.15
 
     const schedule = () => {
-      if (!this.ctx || !this.master) return
+      if (!this.ctx||!this.master) return
       while (next < this.ctx.currentTime + lookahead) {
-        const s = step % 16
-        const s8 = step % 8
-
-        if (s === 0 || s === 8) this.kick(next, 0.55)
-        if (s === 4 || s === 12) this.kick(next, 0.3)   // ghost kick
-        if (s8 === 4) this.snare(next, 0.3)
-        this.hihat(next, s % 2 === 0 ? 0.07 : 0.04, s8 === 7)
-
-        const bassFreq = bassLine[s]
-        if (bassFreq) this.bass(next, bassFreq, eighth * 0.85)
-
-        // Chord stab every measure
-        if (s === 0) this.chordStab(next, [220, 261.63, 329.63], 0.06)
-        if (s === 8) this.chordStab(next, [196, 246.94, 311.13], 0.05)
-
-        next += eighth
-        step++
+        const i = step % STEPS
+        if (kickPat[i])       this.kick(next)
+        if (snarePat[i])      this.snare(next)
+        if (hatVol[i])        this.hihat(next, hatVol[i], !!openPat[i])
+        if (bassFreq[i])      this.bass(next, bassFreq[i], s16*3.5)
+        if (leadFreq[i])      this.lead(next, leadFreq[i], s16*1.8)
+        // Chord hit on beat 1 of measure
+        if (i===0||i===16)    this.chord(next, [220,277,330], 0.05)
+        if (i===8||i===24)    this.chord(next, [196,247,311], 0.04)
+        next += s16; step++
       }
-      this.beatTimer = setTimeout(schedule, 20)
+      setTimeout(schedule, 20)
     }
     schedule()
   }
 
-  private kick(time: number, vol = 0.5) {
-    const ctx = this.ctx!
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.frequency.setValueAtTime(200, time)
-    osc.frequency.exponentialRampToValueAtTime(40, time + 0.35)
-    gain.gain.setValueAtTime(vol, time)
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5)
-    osc.connect(gain); gain.connect(this.master!)
-    osc.start(time); osc.stop(time + 0.5)
+  private kick(t: number) {
+    const ctx=this.ctx!, g=this.master!
+    const o=ctx.createOscillator(), gn=ctx.createGain()
+    o.frequency.setValueAtTime(220,t)
+    o.frequency.exponentialRampToValueAtTime(40,t+0.45)
+    gn.gain.setValueAtTime(0.6,t)
+    gn.gain.exponentialRampToValueAtTime(0.001,t+0.5)
+    o.connect(gn); gn.connect(g); o.start(t); o.stop(t+0.5)
   }
 
-  private snare(time: number, vol = 0.25) {
-    const ctx = this.ctx!
-    // Noise body
-    const noise = ctx.createBufferSource()
-    noise.buffer = this.noiseCache
-    const bpf = ctx.createBiquadFilter()
-    bpf.type = 'bandpass'; bpf.frequency.value = 2800; bpf.Q.value = 0.8
-    const gain = ctx.createGain()
-    gain.gain.setValueAtTime(vol, time)
-    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.18)
-    noise.connect(bpf); bpf.connect(gain); gain.connect(this.master!)
-    noise.start(time); noise.stop(time + 0.18)
-    // Tone crack
-    const osc = ctx.createOscillator()
-    const g2 = ctx.createGain()
-    osc.frequency.value = 190
-    g2.gain.setValueAtTime(vol * 0.6, time)
-    g2.gain.exponentialRampToValueAtTime(0.001, time + 0.08)
-    osc.connect(g2); g2.connect(this.master!)
-    osc.start(time); osc.stop(time + 0.08)
+  private snare(t: number) {
+    const ctx=this.ctx!, g=this.master!
+    const n=ctx.createBufferSource(); n.buffer=this.noiseCache
+    const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=3000
+    const gn=ctx.createGain()
+    gn.gain.setValueAtTime(0.28,t); gn.gain.exponentialRampToValueAtTime(0.001,t+0.16)
+    n.connect(f); f.connect(gn); gn.connect(g); n.start(t); n.stop(t+0.16)
+    const o=ctx.createOscillator(), g2=ctx.createGain()
+    o.frequency.value=200; g2.gain.setValueAtTime(0.18,t); g2.gain.exponentialRampToValueAtTime(0.001,t+0.07)
+    o.connect(g2); g2.connect(g); o.start(t); o.stop(t+0.07)
   }
 
-  private hihat(time: number, vol = 0.06, open = false) {
-    const ctx = this.ctx!
-    const noise = ctx.createBufferSource()
-    noise.buffer = this.noiseCache
-    const hpf = ctx.createBiquadFilter()
-    hpf.type = 'highpass'; hpf.frequency.value = 9000
-    const gain = ctx.createGain()
-    const dur = open ? 0.12 : 0.035
-    gain.gain.setValueAtTime(vol, time)
-    gain.gain.exponentialRampToValueAtTime(0.001, time + dur)
-    noise.connect(hpf); hpf.connect(gain); gain.connect(this.master!)
-    noise.start(time); noise.stop(time + dur)
+  private hihat(t: number, vol: number, open: boolean) {
+    const ctx=this.ctx!, g=this.master!
+    const n=ctx.createBufferSource(); n.buffer=this.noiseCache
+    const hpf=ctx.createBiquadFilter(); hpf.type='highpass'; hpf.frequency.value=10000
+    const gn=ctx.createGain(); const dur=open?0.1:0.03
+    gn.gain.setValueAtTime(vol,t); gn.gain.exponentialRampToValueAtTime(0.001,t+dur)
+    n.connect(hpf); hpf.connect(gn); gn.connect(g); n.start(t); n.stop(t+dur)
   }
 
-  private bass(time: number, freq: number, dur: number) {
-    const ctx = this.ctx!
-    const osc = ctx.createOscillator()
-    const lpf = ctx.createBiquadFilter()
-    const gain = ctx.createGain()
-    osc.type = 'sine'; osc.frequency.value = freq
-    lpf.type = 'lowpass'; lpf.frequency.value = 260
-    gain.gain.setValueAtTime(0.28, time)
-    gain.gain.exponentialRampToValueAtTime(0.001, time + dur)
-    osc.connect(lpf); lpf.connect(gain); gain.connect(this.master!)
-    osc.start(time); osc.stop(time + dur)
+  private bass(t: number, freq: number, dur: number) {
+    const ctx=this.ctx!, g=this.master!
+    const o=ctx.createOscillator(), lpf=ctx.createBiquadFilter(), gn=ctx.createGain()
+    o.type='sawtooth'; o.frequency.value=freq
+    lpf.type='lowpass'; lpf.frequency.value=200
+    gn.gain.setValueAtTime(0.3,t); gn.gain.exponentialRampToValueAtTime(0.001,t+dur)
+    o.connect(lpf); lpf.connect(gn); gn.connect(g); o.start(t); o.stop(t+dur)
   }
 
-  private chordStab(time: number, freqs: number[], vol: number) {
+  private lead(t: number, freq: number, dur: number) {
+    const ctx=this.ctx!, g=this.master!
+    const o=ctx.createOscillator(), lpf=ctx.createBiquadFilter(), gn=ctx.createGain()
+    o.type='square'; o.frequency.value=freq
+    lpf.type='lowpass'; lpf.frequency.value=1200; lpf.Q.value=3
+    gn.gain.setValueAtTime(0.06,t); gn.gain.exponentialRampToValueAtTime(0.001,t+dur)
+    o.connect(lpf); lpf.connect(gn); gn.connect(g); o.start(t); o.stop(t+dur)
+  }
+
+  private chord(t: number, freqs: number[], vol: number) {
     freqs.forEach(freq => {
-      const ctx = this.ctx!
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      const lpf = ctx.createBiquadFilter()
-      osc.type = 'triangle'; osc.frequency.value = freq
-      lpf.type = 'lowpass'; lpf.frequency.value = 900
-      gain.gain.setValueAtTime(vol, time)
-      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.4)
-      osc.connect(lpf); lpf.connect(gain); gain.connect(this.master!)
-      osc.start(time); osc.stop(time + 0.4)
+      const ctx=this.ctx!, g=this.master!
+      const o=ctx.createOscillator(), lpf=ctx.createBiquadFilter(), gn=ctx.createGain()
+      o.type='triangle'; o.frequency.value=freq
+      lpf.type='lowpass'; lpf.frequency.value=800
+      gn.gain.setValueAtTime(vol,t); gn.gain.exponentialRampToValueAtTime(0.001,t+0.35)
+      o.connect(lpf); lpf.connect(gn); gn.connect(g); o.start(t); o.stop(t+0.35)
     })
   }
 
-  // ── UI Sounds ─────────────────────────────────────────────────────────────
-  private tone(freq: number, vol: number, dur: number, type: OscillatorType = 'sine') {
-    if (!this.ctx) return
-    const osc = this.ctx.createOscillator()
-    const gain = this.ctx.createGain()
-    osc.frequency.value = freq; osc.type = type
-    gain.gain.setValueAtTime(vol, this.ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + dur)
-    osc.connect(gain); gain.connect(this.ctx.destination)
-    osc.start(); osc.stop(this.ctx.currentTime + dur)
+  // ── UI sounds ─────────────────────────────────────────────────────────────
+  private tone(freq: number, vol: number, dur: number, type: OscillatorType='sine') {
+    if(!this.ctx) return
+    const o=this.ctx.createOscillator(), gn=this.ctx.createGain()
+    o.frequency.value=freq; o.type=type
+    gn.gain.setValueAtTime(vol,this.ctx.currentTime)
+    gn.gain.exponentialRampToValueAtTime(0.0001,this.ctx.currentTime+dur)
+    o.connect(gn); gn.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime+dur)
   }
-
-  playOpen()     { this.tone(880, 0.07, 0.3); setTimeout(() => this.tone(1108, 0.04, 0.4), 80) }
-  playSend()     { this.tone(660, 0.04, 0.1); setTimeout(() => this.tone(880, 0.03, 0.15), 55) }
-  playProximity(){ this.tone(528, 0.04, 0.45); setTimeout(() => this.tone(660, 0.03, 0.35), 110) }
-  playClose()    { this.tone(440, 0.04, 0.18) }
-  playRecord()   { this.tone(660, 0.06, 0.12); setTimeout(() => this.tone(880, 0.05, 0.2), 80) }
+  playOpen()      { this.tone(880,0.07,0.3); setTimeout(()=>this.tone(1108,0.04,0.4),80) }
+  playSend()      { this.tone(660,0.04,0.1); setTimeout(()=>this.tone(880,0.03,0.15),55) }
+  playProximity() { this.tone(528,0.04,0.45); setTimeout(()=>this.tone(660,0.03,0.35),110) }
+  playClose()     { this.tone(440,0.04,0.18) }
+  playRecord()    { this.tone(660,0.06,0.12); setTimeout(()=>this.tone(880,0.05,0.2),80) }
 }
 
 export const audio = new AudioSystem()

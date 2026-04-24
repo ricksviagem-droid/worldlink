@@ -12,16 +12,28 @@ const socket = io()
 
 type PlayerState = { x: number; z: number }
 type PlayersMap = Record<string, PlayerState>
+type CamMode = 'iso' | 'top' | 'close' | 'wide'
+
+const CAM: Record<CamMode, { y: number; dz: number; speed: number }> = {
+  iso:   { y: 14, dz: 12, speed: 0.07 },
+  top:   { y: 24, dz: 2,  speed: 0.06 },
+  close: { y: 6,  dz: 5,  speed: 0.10 },
+  wide:  { y: 20, dz: 20, speed: 0.05 },
+}
+const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide']
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
-function CameraRig({ target }: { target: PlayerState }) {
+function CameraRig({ target, mode }: { target: PlayerState; mode: CamMode }) {
   const { camera } = useThree()
   const t = useRef(target)
   t.current = target
+  const m = useRef(mode)
+  m.current = mode
   useFrame(() => {
-    camera.position.x += (t.current.x - camera.position.x) * 0.07
-    camera.position.y = 14
-    camera.position.z += (t.current.z + 12 - camera.position.z) * 0.07
+    const cfg = CAM[m.current]
+    camera.position.x += (t.current.x - camera.position.x) * cfg.speed
+    camera.position.y += (cfg.y - camera.position.y) * cfg.speed
+    camera.position.z += (t.current.z + cfg.dz - camera.position.z) * cfg.speed
     camera.lookAt(t.current.x, 0, t.current.z - 1)
   })
   return null
@@ -69,8 +81,41 @@ function RemotePlayer({ targetPosition }: { targetPosition: PlayerState }) {
 
 // ─── NPC ─────────────────────────────────────────────────────────────────────
 function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
+  const groupRef = useRef<THREE.Group>(null)
+  const pos = useRef({ x: npc.position[0], z: npc.position[2] })
+  const target = useRef({ x: npc.position[0], z: npc.position[2] })
+  const timer = useRef(Math.random() * 3)
+  const WANDER = npc.id === 'bartender' ? 1.2 : 2.2
+
+  useFrame((_, delta) => {
+    if (!groupRef.current) return
+    timer.current += delta
+    if (timer.current > 2.5 + Math.random() * 3) {
+      const angle = Math.random() * Math.PI * 2
+      const r = Math.random() * WANDER
+      target.current = {
+        x: npc.position[0] + Math.cos(angle) * r,
+        z: npc.position[2] + Math.sin(angle) * r,
+      }
+      timer.current = 0
+    }
+    const spd = 0.018
+    pos.current.x += (target.current.x - pos.current.x) * spd
+    pos.current.z += (target.current.z - pos.current.z) * spd
+    groupRef.current.position.x = pos.current.x
+    groupRef.current.position.z = pos.current.z
+    // Face direction of movement
+    const dx = target.current.x - pos.current.x
+    const dz = target.current.z - pos.current.z
+    if (Math.abs(dx) + Math.abs(dz) > 0.005) {
+      groupRef.current.rotation.y = Math.atan2(dx, dz)
+    }
+    // Gentle idle bob
+    groupRef.current.position.y = Math.sin(Date.now() * 0.0015 + npc.position[0]) * 0.04
+  })
+
   return (
-    <group position={npc.position}>
+    <group ref={groupRef} position={npc.position}>
       <mesh position={[0, 0.7, 0]} castShadow>
         <boxGeometry args={[0.55, 1.1, 0.35]} />
         <meshStandardMaterial color={npc.bodyColor} />
@@ -83,22 +128,14 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
         <div style={{
           background: nearby ? 'rgba(243,156,18,0.9)' : 'rgba(0,0,0,0.65)',
           color: nearby ? '#111' : '#fff',
-          padding: '3px 11px',
-          borderRadius: 20,
-          fontSize: 12,
-          fontFamily: '-apple-system, sans-serif',
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
-          backdropFilter: 'blur(6px)',
+          padding: '3px 11px', borderRadius: 20, fontSize: 12,
+          fontFamily: '-apple-system, sans-serif', fontWeight: 600,
+          whiteSpace: 'nowrap', backdropFilter: 'blur(6px)',
           transition: 'all 0.2s',
           boxShadow: nearby ? '0 2px 12px rgba(243,156,18,0.5)' : 'none',
         }}>
           {npc.name}
-          {nearby && (
-            <div style={{ fontSize: 10, fontWeight: 400, textAlign: 'center', marginTop: 1 }}>
-              Press E to talk
-            </div>
-          )}
+          {nearby && <div style={{ fontSize: 10, fontWeight: 400, textAlign: 'center', marginTop: 1 }}>Press E to talk</div>}
         </div>
       </Html>
     </group>
@@ -112,6 +149,7 @@ export default function App() {
   const [players, setPlayers] = useState<PlayersMap>({})
   const [nearbyNpc, setNearbyNpc] = useState<NpcDef | null>(null)
   const [activeChatNpc, setActiveChatNpc] = useState<NpcDef | null>(null)
+  const [camMode, setCamMode] = useState<CamMode>('iso')
   const chatOpenRef = useRef(false)
 
   // Socket
@@ -164,6 +202,11 @@ export default function App() {
       }
       if ((e.target as HTMLElement).tagName === 'INPUT') return
 
+      if (e.key === 'c' || e.key === 'C') {
+        setCamMode(prev => CAM_KEYS[(CAM_KEYS.indexOf(prev) + 1) % CAM_KEYS.length])
+        return
+      }
+
       if ((e.key === 'e' || e.key === 'E') && nearbyNpc) {
         setActiveChatNpc(nearbyNpc)
         chatOpenRef.current = true
@@ -209,10 +252,25 @@ export default function App() {
         zIndex: 10, background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.6)',
         padding: '5px 18px', borderRadius: 20,
         fontFamily: 'sans-serif', fontSize: 12,
-        backdropFilter: 'blur(4px)',
-        pointerEvents: 'none',
+        backdropFilter: 'blur(4px)', pointerEvents: 'none',
       }}>
-        WASD / ↑↓←→ move &nbsp;·&nbsp; E talk
+        WASD move &nbsp;·&nbsp; E talk &nbsp;·&nbsp; C camera
+      </div>
+
+      {/* Camera mode selector */}
+      <div style={{
+        position: 'absolute', top: 16, left: 16, zIndex: 10,
+        display: 'flex', gap: 6,
+      }}>
+        {CAM_KEYS.map(m => (
+          <button key={m} onClick={() => setCamMode(m)} style={{
+            padding: '5px 12px', borderRadius: 16, border: 'none',
+            background: camMode === m ? 'rgba(243,156,18,0.85)' : 'rgba(0,0,0,0.45)',
+            color: camMode === m ? '#111' : 'rgba(255,255,255,0.6)',
+            fontFamily: 'sans-serif', fontSize: 12, fontWeight: camMode === m ? 700 : 400,
+            cursor: 'pointer', backdropFilter: 'blur(6px)',
+          }}>{m}</button>
+        ))}
       </div>
 
       {/* Chat panel */}
@@ -230,7 +288,7 @@ export default function App() {
         />
         <directionalLight position={[-8, 10, -5]} intensity={0.3} color="#c8e6ff" />
 
-        <CameraRig target={position} />
+        <CameraRig target={position} mode={camMode} />
         <BeachClub />
 
         {NPCS.map(npc => (
