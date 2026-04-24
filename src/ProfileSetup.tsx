@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { OUTFITS, INTERESTS, FACE_EMOJIS, getOutfit, type PlayerProfile } from './outfits'
+import { OUTFITS, INTERESTS, FACE_EMOJIS, COUNTRIES, getOutfit, toFlag, type PlayerProfile } from './outfits'
 
 interface Props {
   initial?: PlayerProfile | null
@@ -15,6 +15,9 @@ export function ProfileSetup({ initial, onSave }: Props) {
   const [name, setName] = useState(initial?.name ?? '')
   const [bio, setBio] = useState(initial?.bio ?? '')
   const [interests, setInterests] = useState<string[]>(initial?.interests ?? [])
+  const [photoUrl, setPhotoUrl] = useState(initial?.photoUrl ?? '')
+  const [nationality, setNationality] = useState(initial?.nationality ?? '')
+  const [showNameplate, setShowNameplate] = useState(initial?.showNameplate ?? true)
 
   const outfit = getOutfit(outfitId)
 
@@ -25,7 +28,7 @@ export function ProfileSetup({ initial, onSave }: Props) {
 
   const handleSave = () => {
     if (!name.trim()) return
-    onSave({ name: name.trim(), bio, interests, outfitId, faceEmoji })
+    onSave({ name: name.trim(), bio, interests, outfitId, faceEmoji, photoUrl: photoUrl.trim() || undefined, nationality: nationality || undefined, showNameplate })
   }
 
   return (
@@ -96,33 +99,63 @@ export function ProfileSetup({ initial, onSave }: Props) {
         </div>
       )}
 
-      {/* STEP 1 — Name + Bio */}
+      {/* STEP 1 — Name + Bio + Photo + Country */}
       {step === 1 && (
         <div style={{ width: '100%', maxWidth: 400 }}>
-          <div style={{ textAlign: 'center', marginBottom: 18 }}>
+          {/* Photo preview */}
+          <div style={{ textAlign: 'center', marginBottom: 14 }}>
             <div style={{
-              width: 64, height: 64, borderRadius: '50%', margin: '0 auto 10px',
-              background: outfit.bodyColor, fontSize: 28,
+              width: 70, height: 70, borderRadius: '50%', margin: '0 auto',
+              background: outfit.bodyColor, fontSize: 28, overflow: 'hidden',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>{faceEmoji}</div>
+              border: '3px solid rgba(255,255,255,0.18)',
+            }}>
+              {photoUrl.trim() ? (
+                <img src={photoUrl.trim()} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              ) : faceEmoji}
+            </div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 6 }}>pré-visualização</div>
           </div>
+
           <label style={label}>Seu nome *</label>
-          <input
-            value={name} onChange={e => setName(e.target.value)}
-            placeholder="Como você se chama?" maxLength={24}
-            style={input}
-          />
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="Como você se chama?" maxLength={24} style={input} />
+
           <label style={label}>Sobre você (opcional)</label>
-          <textarea
-            value={bio} onChange={e => setBio(e.target.value)}
-            placeholder="O que você faz? O que gosta?" maxLength={120} rows={3}
-            style={{ ...input, resize: 'none' }}
-          />
+          <textarea value={bio} onChange={e => setBio(e.target.value)} placeholder="O que você faz? O que gosta?" maxLength={120} rows={2} style={{ ...input, resize: 'none' }} />
+
+          <label style={label}>Foto de perfil — cole um link de imagem (opcional)</label>
+          <input value={photoUrl} onChange={e => setPhotoUrl(e.target.value)} placeholder="https://..." style={input} />
+
+          <label style={label}>País</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+            {COUNTRIES.map(c => (
+              <button key={c.code} onClick={() => setNationality(nationality === c.code ? '' : c.code)} style={{
+                padding: '5px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 13,
+                background: nationality === c.code ? 'rgba(243,156,18,0.22)' : 'rgba(255,255,255,0.07)',
+                border: nationality === c.code ? '1.5px solid #f39c12' : '1.5px solid rgba(255,255,255,0.12)',
+                color: '#fff',
+              }}>{toFlag(c.code)} {c.name}</button>
+            ))}
+          </div>
+
+          <label style={label}>Visibilidade no jogo</label>
+          <button onClick={() => setShowNameplate(v => !v)} style={{
+            ...input, textAlign: 'left', cursor: 'pointer', marginBottom: 16,
+            border: showNameplate ? '1.5px solid #f39c12' : '1.5px solid rgba(255,255,255,0.12)',
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <span style={{ fontSize: 18 }}>{showNameplate ? '👁️' : '🙈'}</span>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{showNameplate ? 'Mostrar meu nome e foto' : 'Ficar invisível para outros'}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                {showNameplate ? 'Seu nome e foto aparecem acima do avatar' : 'Só você se vê, ninguém sabe quem é você'}
+              </div>
+            </div>
+          </button>
+
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={() => setStep(0)} style={{ ...btn, background: 'rgba(255,255,255,0.1)', flex: 1 }}>← Voltar</button>
-            <button onClick={() => name.trim() && setStep(2)} style={{ ...btn, flex: 2, opacity: name.trim() ? 1 : 0.4 }}>
-              Próximo →
-            </button>
+            <button onClick={() => name.trim() && setStep(2)} style={{ ...btn, flex: 2, opacity: name.trim() ? 1 : 0.4 }}>Próximo →</button>
           </div>
         </div>
       )}

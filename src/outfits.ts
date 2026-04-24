@@ -14,7 +14,32 @@ export interface PlayerProfile {
   interests: string[]
   outfitId: string
   faceEmoji: string
+  photoUrl?: string
+  nationality?: string  // ISO 3166-1 alpha-2, e.g. 'BR'
+  showNameplate?: boolean  // default true; false = invisible mode
 }
+
+export const COUNTRIES: { code: string; name: string }[] = [
+  { code: 'BR', name: 'Brasil' },
+  { code: 'US', name: 'EUA' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'AR', name: 'Argentina' },
+  { code: 'ES', name: 'Espanha' },
+  { code: 'IT', name: 'Itália' },
+  { code: 'FR', name: 'França' },
+  { code: 'GB', name: 'UK' },
+  { code: 'DE', name: 'Alemanha' },
+  { code: 'MX', name: 'México' },
+  { code: 'CO', name: 'Colômbia' },
+  { code: 'JP', name: 'Japão' },
+  { code: 'CN', name: 'China' },
+  { code: 'IN', name: 'Índia' },
+  { code: 'AU', name: 'Austrália' },
+  { code: 'ZA', name: 'África do Sul' },
+]
+
+export const toFlag = (code: string) =>
+  code.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
 
 export const OUTFITS: Outfit[] = [
   { id: 'beach',    name: 'Beach',     emoji: '🏖️', bodyColor: '#e67e22', headColor: '#f0c27f', hairColor: '#4a2810', pantsColor: '#c0aa72' },

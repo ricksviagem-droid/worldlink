@@ -12,6 +12,8 @@ export interface CardProfile {
   personality?: string
   interests: string[]
   story?: string
+  photoUrl?: string
+  nationality?: string
   isNpc: boolean
 }
 
@@ -84,9 +86,12 @@ export function ProfileCard({ profile, myInterests, isLiked, isMatch, onLike, on
           fontSize: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
           position: 'relative', top: 35,
           boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
-          flexShrink: 0,
+          flexShrink: 0, overflow: 'hidden',
         }}>
-          {profile.faceEmoji ?? profile.name[0]}
+          {profile.photoUrl
+            ? <img src={profile.photoUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+            : (profile.faceEmoji ?? profile.name[0])
+          }
         </div>
       </div>
 
