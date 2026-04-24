@@ -19,6 +19,7 @@ import { ProfileSetup } from './ProfileSetup'
 import { ProfileCard, type CardProfile } from './ProfileCard'
 import { MatchNotification, MatchesPanel } from './MatchesPanel'
 import { DMPanel, type DMMessage } from './DMPanel'
+import { PeoplePanel } from './PeoplePanel'
 import { Shop } from './Shop'
 import { getOutfit, STORAGE_KEY, type PlayerProfile } from './outfits'
 
@@ -269,8 +270,9 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
   )
 }
 
-function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsColor, name }: {
-  targetPosition: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string; name?: string
+function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsColor, name, photoUrl, nationality, showNameplate }: {
+  targetPosition: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string
+  name?: string; photoUrl?: string; nationality?: string; showNameplate?: boolean
 }) {
   const groupRef  = useRef<THREE.Group>(null)
   const lp        = useRef({ x: targetPosition.x, z: targetPosition.z })
@@ -298,19 +300,37 @@ function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsCo
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
       <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
-      <Html position={[0, 2.4, 0]} center distanceFactor={12}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          background: 'rgba(10,10,20,0.72)', backdropFilter: 'blur(8px)',
-          color: '#fff', padding: '3px 10px', borderRadius: 20, fontSize: 12,
-          fontFamily: '-apple-system, sans-serif', fontWeight: 600,
-          whiteSpace: 'nowrap', border: '1px solid rgba(76,175,80,0.4)',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-        }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4caf50', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 5px #4caf50' }} />
-          {name ?? 'Player'}
-        </div>
-      </Html>
+      {(showNameplate ?? true) && (
+        <Html position={[0, 2.45, 0]} center distanceFactor={12}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            background: 'rgba(8,8,20,0.78)', backdropFilter: 'blur(10px)',
+            color: '#fff', padding: '3px 8px 3px 3px', borderRadius: 22, fontSize: 12,
+            fontFamily: '-apple-system, sans-serif', fontWeight: 600,
+            whiteSpace: 'nowrap', border: '1px solid rgba(76,175,80,0.35)',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
+          }}>
+            {/* Mini avatar / photo */}
+            <div style={{
+              width: 22, height: 22, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+              background: `radial-gradient(circle at 35% 30%, ${headColor}, ${bodyColor})`,
+              border: '1.5px solid rgba(76,175,80,0.6)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11,
+            }}>
+              {photoUrl
+                ? <img src={photoUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : null
+              }
+            </div>
+            <span>{name ?? 'Player'}</span>
+            {nationality && (
+              <span style={{ fontSize: 14 }}>
+                {nationality.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')}
+              </span>
+            )}
+          </div>
+        </Html>
+      )}
     </group>
   )
 }
@@ -487,6 +507,7 @@ export default function App() {
   const remoteProfilesRef = useRef(remoteProfiles)
   remoteProfilesRef.current = remoteProfiles
   const [showShop, setShowShop] = useState(false)
+  const [showPeoplePanel, setShowPeoplePanel] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
 
   const myOutfit = getOutfit(myProfile?.outfitId ?? 'beach')
@@ -934,6 +955,16 @@ export default function App() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
           }}>{myProfile.faceEmoji}</button>
+          {/* People panel button */}
+          <button onClick={() => setShowPeoplePanel(true)} title="Quem está no club" style={{
+            width: 38, height: 38, borderRadius: '50%', position: 'relative',
+            border: '2px solid rgba(255,255,255,0.15)',
+            background: 'rgba(0,0,0,0.4)',
+            cursor: 'pointer', fontSize: 18,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+            backdropFilter: 'blur(8px)',
+          }}>👥</button>
           {/* Matches button */}
           <button onClick={() => setShowMatches(true)} title="Ver matches" style={{
             width: 38, height: 38, borderRadius: '50%', position: 'relative',
@@ -1133,60 +1164,28 @@ export default function App() {
       {/* Chat panel */}
       {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
 
-      {/* NPC profile card — shown when nearby and chat is closed */}
-      {nearbyNpc && !activeChatNpc && (() => {
-        const npcCard: CardProfile = {
-          name: nearbyNpc.name,
-          bodyColor: nearbyNpc.bodyColor,
-          headColor: nearbyNpc.headColor,
-          bio: nearbyNpc.bio,
-          age: nearbyNpc.age,
-          role: nearbyNpc.role,
-          personality: nearbyNpc.personality,
-          interests: nearbyNpc.interests,
-          story: nearbyNpc.story,
-          isNpc: true,
-        }
-        return (
-          <ProfileCard
-            profile={npcCard}
-            myInterests={myProfile?.interests ?? []}
-            isLiked={likedNpcIds.has(nearbyNpc.id)}
-            isMatch={false}
-            onLike={() => {
-              setLikedNpcIds(prev => new Set([...prev, nearbyNpc.id]))
-              setNotification(`❤️ Você curtiu ${nearbyNpc.name}!`)
-            }}
-            onChat={() => { setActiveChatNpc(nearbyNpc); chatOpenRef.current = true }}
-            onClose={() => setNearbyNpc(null)}
-          />
-        )
-      })()}
-
-      {/* Nearby player profile card */}
-      {!nearbyNpc && nearbyPlayerId && remoteProfiles[nearbyPlayerId] && (() => {
-        const rp = remoteProfiles[nearbyPlayerId]
-        const outfit = getOutfit(rp.outfitId)
-        const playerCard: CardProfile = {
-          name: rp.name,
-          faceEmoji: rp.faceEmoji,
-          bodyColor: outfit.bodyColor,
-          headColor: outfit.headColor,
-          bio: rp.bio,
-          interests: rp.interests,
-          isNpc: false,
-        }
-        return (
-          <ProfileCard
-            profile={playerCard}
-            myInterests={myProfile?.interests ?? []}
-            isLiked={likedIds.has(nearbyPlayerId)}
-            isMatch={matches.has(nearbyPlayerId)}
-            onLike={() => handleLike(nearbyPlayerId)}
-            onClose={() => setNearbyPlayerId(null)}
-          />
-        )
-      })()}
+      {/* People panel — opt-in directory */}
+      {showPeoplePanel && (
+        <PeoplePanel
+          players={players}
+          profiles={remoteProfiles}
+          myId={myId.current}
+          matches={matches}
+          likedIds={likedIds}
+          likedNpcIds={likedNpcIds}
+          myInterests={myProfile?.interests ?? []}
+          onLikePlayer={id => handleLike(id)}
+          onLikeNpc={id => setLikedNpcIds(prev => new Set(prev).add(id))}
+          onChatNpc={npc => { setActiveChatNpc(npc); chatOpenRef.current = true; audio.playOpen(); setShowPeoplePanel(false) }}
+          onOpenDM={id => {
+            setActiveDMId(id)
+            setUnreadDMs(prev => { const s = new Set(prev); s.delete(id); return s })
+            socket.emit('getDMHistory', { withId: id })
+            setShowPeoplePanel(false)
+          }}
+          onClose={() => setShowPeoplePanel(false)}
+        />
+      )}
 
       {/* Mission / shift panel */}
       {hudVisible.mission ? (
@@ -1262,7 +1261,7 @@ export default function App() {
           if (id === myId.current) return null
           const rProfile = remoteProfiles[id]
           const rOutfit = getOutfit(rProfile?.outfitId ?? 'ocean')
-          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} hairColor={rOutfit.hairColor} pantsColor={rOutfit.pantsColor} name={rProfile?.name} />
+          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} hairColor={rOutfit.hairColor} pantsColor={rOutfit.pantsColor} name={rProfile?.name} photoUrl={rProfile?.photoUrl} nationality={rProfile?.nationality} showNameplate={rProfile?.showNameplate} />
         })}
       </Canvas>
     </div>
