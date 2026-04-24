@@ -103,12 +103,19 @@ function RedCarpet() {
 }
 
 function SidePath() {
-  // Road for the buggy on the left side
+  // Buggy road: covers full route from street (z:34) through reception to club (z:-3)
   return (
-    <mesh position={[-5, 0.01, 13]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-      <planeGeometry args={[2.5, 26]} />
-      <meshStandardMaterial color="#d4c9a8" roughness={0.9} />
-    </mesh>
+    <>
+      <mesh position={[-5, 0.01, 15.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[2.8, 41]} />
+        <meshStandardMaterial color="#d4c9a8" roughness={0.9} />
+      </mesh>
+      {/* Parking bay at street stop (z:34) */}
+      <mesh position={[-5, 0.02, 33.5]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[5, 4]} />
+        <meshStandardMaterial color="#c8bf9e" roughness={0.85} />
+      </mesh>
+    </>
   )
 }
 

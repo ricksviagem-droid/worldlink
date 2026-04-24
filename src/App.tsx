@@ -36,30 +36,36 @@ const CAM: Record<Exclude<CamMode,'pov'>, { y: number; dz: number; speed: number
 const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide', 'pov']
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
-function CameraRig({ target, mode, facingRef, zoomRef }: {
+function CameraRig({ target, mode, facingRef, zoomRef, camYawRef }: {
   target: PlayerState
   mode: CamMode
   facingRef: React.RefObject<number>
   zoomRef: React.RefObject<number>
+  camYawRef: React.RefObject<number>
 }) {
   const { camera } = useThree()
   const cam = camera as THREE.PerspectiveCamera
   const t = useRef(target); t.current = target
   const m = useRef(mode); m.current = mode
+  // Smoothed player position — eliminates camera shake on discrete key steps
+  const smooth = useRef({ x: target.x, z: target.z })
 
   useFrame(() => {
     const zoom = zoomRef.current ?? 1.0
 
+    // Double-smooth the target so camera never jerks on discrete moves
+    smooth.current.x += (t.current.x - smooth.current.x) * 0.10
+    smooth.current.z += (t.current.z - smooth.current.z) * 0.10
+
     if (m.current === 'pov') {
       const angle = facingRef.current ?? 0
-      const lookDist = 8
       camera.position.x += (t.current.x - camera.position.x) * 0.22
       camera.position.y += (1.5  - camera.position.y) * 0.22
       camera.position.z += (t.current.z - camera.position.z) * 0.22
       camera.lookAt(
-        t.current.x + Math.sin(angle) * lookDist,
+        t.current.x + Math.sin(angle) * 8,
         1.4,
-        t.current.z - Math.cos(angle) * lookDist,
+        t.current.z - Math.cos(angle) * 8,
       )
       cam.fov += (80 / zoom - cam.fov) * 0.12
       cam.updateProjectionMatrix()
@@ -67,10 +73,15 @@ function CameraRig({ target, mode, facingRef, zoomRef }: {
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
-    camera.position.x += (t.current.x - camera.position.x) * cfg.speed
-    camera.position.y += (cfg.y      - camera.position.y) * cfg.speed
-    camera.position.z += (t.current.z + cfg.dz - camera.position.z) * cfg.speed
-    camera.lookAt(t.current.x, 0, t.current.z - 1)
+    const yaw = camYawRef.current ?? 0
+    const tx = smooth.current.x
+    const tz = smooth.current.z
+    const idealX = tx + Math.sin(yaw) * cfg.dz
+    const idealZ = tz + Math.cos(yaw) * cfg.dz
+    camera.position.x += (idealX - camera.position.x) * cfg.speed
+    camera.position.y += (cfg.y   - camera.position.y) * cfg.speed
+    camera.position.z += (idealZ  - camera.position.z) * cfg.speed
+    camera.lookAt(tx, 0, tz)
     cam.fov += (50 / zoom - cam.fov) * 0.10
     cam.updateProjectionMatrix()
   })
@@ -203,9 +214,11 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
 // ─── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const myId = useRef('')
-  const facingRef = useRef(0)         // player facing angle (radians)
-  const zoomRef = useRef(1.0)         // camera zoom level
-  const pinchStart = useRef({ dist: 0, zoom: 1.0 })
+  const facingRef   = useRef(0)         // player facing angle (radians)
+  const zoomRef     = useRef(1.0)       // camera zoom level
+  const camYawRef   = useRef(0)         // camera orbit angle (right-drag / two-finger swipe)
+  const pinchStart  = useRef({ dist: 0, zoom: 1.0 })
+  const dragRef     = useRef<{ x: number; yaw: number } | null>(null)
   const [position, setPosition] = useState<PlayerState>({ x: 0, z: 0 })
   const [players, setPlayers] = useState<PlayersMap>({})
   const [nearbyNpc, setNearbyNpc] = useState<NpcDef | null>(null)
@@ -503,6 +516,14 @@ export default function App() {
     }
   }
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 2) dragRef.current = { x: e.clientX, yaw: camYawRef.current }
+  }
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (dragRef.current) camYawRef.current = dragRef.current.yaw - (e.clientX - dragRef.current.x) * 0.007
+  }
+  const handleMouseUp = () => { dragRef.current = null }
+
   const handleMobileTalk = () => {
     if (nearbyNpc && !chatOpenRef.current) {
       setActiveChatNpc(nearbyNpc)
@@ -541,67 +562,91 @@ export default function App() {
       style={{ width: '100vw', height: '100vh', position: 'relative', background: '#f4a460' }}
       onTouchStart={handlePinchStart}
       onTouchMove={handlePinchMove}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onContextMenu={e => e.preventDefault()}
     >
       {/* HUD — top right */}
       {hudVisible.topRight ? (
         <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
           {/* Avatar button */}
           <button onClick={() => setShowProfileSetup(true)} title="Editar perfil" style={{
-            width: 38, height: 38, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)',
+            width: 38, height: 38, borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,0.3)',
             background: myOutfit.bodyColor, cursor: 'pointer', fontSize: 18,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
           }}>{myProfile.faceEmoji}</button>
-          {/* Shop button */}
-          <button onClick={() => setShowShop(true)} style={{
-            padding: '6px 14px', borderRadius: 20, border: 'none',
-            background: 'rgba(0,0,0,0.45)', color: '#fff',
-            fontFamily: 'sans-serif', fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(6px)',
-          }}>🛍️</button>
-          {/* Online count */}
+          {/* Pill bar: Shop + Online + Collapse */}
           <div style={{
-            background: 'rgba(0,0,0,0.45)', color: 'white',
-            padding: '6px 14px', borderRadius: 20,
-            fontFamily: 'sans-serif', fontSize: 13,
-            backdropFilter: 'blur(6px)',
-          }}>{Object.keys(players).length} online</div>
-          {/* Collapse button */}
-          <button onClick={() => toggleHud('topRight')} style={{
-            width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)',
-            background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.5)',
-            cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>−</button>
+            display: 'flex', gap: 0, alignItems: 'center',
+            background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(12px)',
+            borderRadius: 26, padding: '4px 6px',
+            border: '1px solid rgba(255,255,255,0.1)',
+          }}>
+            <button onClick={() => setShowShop(true)} style={{
+              padding: '5px 13px', borderRadius: 22, border: 'none',
+              background: 'transparent', color: 'rgba(255,255,255,0.7)',
+              fontFamily: '-apple-system, sans-serif', fontSize: 12,
+              fontWeight: 600, cursor: 'pointer', letterSpacing: 0.3,
+            }}>Loja</button>
+            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
+            <div style={{
+              padding: '5px 13px', color: 'rgba(255,255,255,0.55)',
+              fontFamily: '-apple-system, sans-serif', fontSize: 12,
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4caf50', display: 'inline-block' }} />
+              {Object.keys(players).length}
+            </div>
+            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
+            <button onClick={() => toggleHud('topRight')} style={{
+              width: 26, height: 26, borderRadius: '50%', border: 'none',
+              background: 'transparent', color: 'rgba(255,255,255,0.35)',
+              cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>−</button>
+          </div>
         </div>
       ) : restorePill('topRight', '≡', { top: 16, right: 16 })}
 
       <div style={{
-        position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)',
-        zIndex: 10, background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.6)',
-        padding: '5px 18px', borderRadius: 20,
-        fontFamily: 'sans-serif', fontSize: 12,
-        backdropFilter: 'blur(4px)', pointerEvents: 'none',
+        position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 10, color: 'rgba(255,255,255,0.28)',
+        fontFamily: '-apple-system, sans-serif', fontSize: 11,
+        letterSpacing: 0.5, pointerEvents: 'none', whiteSpace: 'nowrap',
       }}>
-        WASD move &nbsp;·&nbsp; E talk &nbsp;·&nbsp; C camera
+        WASD · mover &nbsp;|&nbsp; E · interagir &nbsp;|&nbsp; C · câmera &nbsp;|&nbsp; drag direito · orbitar
       </div>
 
       {/* Camera mode selector */}
       {hudVisible.cam ? (
-        <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div style={{
+          position: 'absolute', top: 16, left: 16, zIndex: 10,
+          display: 'flex', gap: 2, alignItems: 'center',
+          background: 'rgba(0,0,0,0.52)', backdropFilter: 'blur(12px)',
+          borderRadius: 26, padding: '4px 5px',
+          border: '1px solid rgba(255,255,255,0.1)',
+        }}>
           {CAM_KEYS.map(m => (
             <button key={m} onClick={() => setCamMode(m)} style={{
-              padding: '5px 12px', borderRadius: 16, border: 'none',
-              background: camMode === m ? 'rgba(243,156,18,0.85)' : 'rgba(0,0,0,0.45)',
-              color: camMode === m ? '#111' : 'rgba(255,255,255,0.6)',
-              fontFamily: 'sans-serif', fontSize: 12, fontWeight: camMode === m ? 700 : 400,
-              cursor: 'pointer', backdropFilter: 'blur(6px)',
+              padding: '5px 13px', borderRadius: 22, border: 'none',
+              background: camMode === m ? '#f39c12' : 'transparent',
+              color: camMode === m ? '#111' : 'rgba(255,255,255,0.5)',
+              fontFamily: '-apple-system, sans-serif', fontSize: 11,
+              fontWeight: camMode === m ? 800 : 500,
+              cursor: 'pointer', letterSpacing: 0.6, textTransform: 'uppercase',
+              transition: 'background 0.15s, color 0.15s',
             }}>{m}</button>
           ))}
+          <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)', margin: '0 3px' }} />
           <button onClick={() => toggleHud('cam')} style={{
-            width: 28, height: 28, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.2)',
-            background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.5)',
-            cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 26, height: 26, borderRadius: '50%', border: 'none',
+            background: 'transparent', color: 'rgba(255,255,255,0.35)',
+            cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>−</button>
         </div>
-      ) : restorePill('cam', '📷', { top: 16, left: 16 })}
+      ) : restorePill('cam', '⊹', { top: 16, left: 16 })}
 
       {/* Shop */}
       {showShop && (
@@ -704,14 +749,14 @@ export default function App() {
         />
         <directionalLight position={[-10, 8, -5]} intensity={0.25} color="#a0c8ff" />
         {/* Pool area — cool aqua fill */}
-        <pointLight position={[0, 4, -8]} intensity={6} distance={18} color="#40e0d0" decay={2} />
+        <pointLight position={[0, 4, -10]} intensity={6} distance={20} color="#40e0d0" decay={2} />
         {/* Bar — warm amber */}
         <pointLight position={[16, 4, -4]} intensity={5} distance={14} color="#ff9944" decay={2} />
         {/* Reception arch — soft white */}
         <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
         <DJLights />
 
-        <CameraRig target={position} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} />
+        <CameraRig target={position} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} />
         <BeachClub />
         <ReceptionArea />
         <ValentinaBuggy />
