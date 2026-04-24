@@ -44,11 +44,48 @@ function CameraRig({ target, mode }: { target: PlayerState; mode: CamMode }) {
   return null
 }
 
+// ─── Disco lights ────────────────────────────────────────────────────────────
+function DJLights() {
+  const refs = [
+    useRef<THREE.PointLight>(null),
+    useRef<THREE.PointLight>(null),
+    useRef<THREE.PointLight>(null),
+  ]
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    refs.forEach((r, i) => {
+      if (!r.current) return
+      const angle = t * 0.65 + (i * Math.PI * 2) / 3
+      r.current.position.x = Math.cos(angle) * 5
+      r.current.position.z = -19 + Math.sin(angle * 1.3) * 1.5
+      r.current.color.setHSL((t * 0.07 + i * 0.33) % 1, 1, 0.55)
+    })
+  })
+  return (
+    <>
+      {refs.map((r, i) => (
+        <pointLight key={i} ref={r} position={[0, 5, -19]} intensity={12} distance={20} decay={2} />
+      ))}
+    </>
+  )
+}
+
 // ─── Players ─────────────────────────────────────────────────────────────────
 function LocalPlayer({ position }: { position: PlayerState }) {
+  const movingRef = useRef(false)
+  const prevPos = useRef(position)
+  const stopTimer = useRef<ReturnType<typeof setTimeout>>()
+
+  if (position.x !== prevPos.current.x || position.z !== prevPos.current.z) {
+    movingRef.current = true
+    prevPos.current = position
+    clearTimeout(stopTimer.current)
+    stopTimer.current = setTimeout(() => { movingRef.current = false }, 180)
+  }
+
   return (
     <group position={[position.x, 0, position.z]}>
-      <CharacterMesh bodyColor="#e67e22" headColor="#f0c27f" />
+      <CharacterMesh bodyColor="#e67e22" headColor="#f0c27f" movingRef={movingRef} />
     </group>
   )
 }
@@ -56,16 +93,20 @@ function LocalPlayer({ position }: { position: PlayerState }) {
 function RemotePlayer({ targetPosition }: { targetPosition: PlayerState }) {
   const groupRef = useRef<THREE.Group>(null)
   const lp = useRef({ x: targetPosition.x, z: targetPosition.z })
+  const movingRef = useRef(false)
   useFrame(() => {
     if (!groupRef.current) return
-    lp.current.x += (targetPosition.x - lp.current.x) * 0.15
-    lp.current.z += (targetPosition.z - lp.current.z) * 0.15
+    const dx = targetPosition.x - lp.current.x
+    const dz = targetPosition.z - lp.current.z
+    movingRef.current = Math.abs(dx) + Math.abs(dz) > 0.01
+    lp.current.x += dx * 0.15
+    lp.current.z += dz * 0.15
     groupRef.current.position.x = lp.current.x
     groupRef.current.position.z = lp.current.z
   })
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
-      <CharacterMesh bodyColor="#2980b9" headColor="#f0c27f" />
+      <CharacterMesh bodyColor="#2980b9" headColor="#f0c27f" movingRef={movingRef} />
     </group>
   )
 }
@@ -76,6 +117,7 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
   const pos = useRef({ x: npc.position[0], z: npc.position[2] })
   const target = useRef({ x: npc.position[0], z: npc.position[2] })
   const timer = useRef(Math.random() * 3)
+  const movingRef = useRef(false)
   const WANDER = npc.id === 'bartender' ? 1.2 : 2.2
 
   useFrame((_, delta) => {
@@ -95,19 +137,18 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
     pos.current.z += (target.current.z - pos.current.z) * spd
     groupRef.current.position.x = pos.current.x
     groupRef.current.position.z = pos.current.z
-    // Face direction of movement
     const dx = target.current.x - pos.current.x
     const dz = target.current.z - pos.current.z
-    if (Math.abs(dx) + Math.abs(dz) > 0.005) {
+    movingRef.current = Math.abs(dx) + Math.abs(dz) > 0.005
+    if (movingRef.current) {
       groupRef.current.rotation.y = Math.atan2(dx, dz)
     }
-    // Gentle idle bob
     groupRef.current.position.y = Math.sin(Date.now() * 0.0015 + npc.position[0]) * 0.04
   })
 
   return (
     <group ref={groupRef} position={npc.position}>
-      <CharacterMesh bodyColor={npc.bodyColor} headColor={npc.headColor} />
+      <CharacterMesh bodyColor={npc.bodyColor} headColor={npc.headColor} movingRef={movingRef} />
       <Html position={[0, 2.2, 0]} center distanceFactor={12}>
         <div style={{
           background: nearby ? 'rgba(243,156,18,0.9)' : 'rgba(0,0,0,0.65)',
@@ -277,7 +318,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', background: '#87ceeb' }}>
+    <div style={{ width: '100vw', height: '100vh', position: 'relative', background: '#f4a460' }}>
       {/* HUD */}
       <div style={{
         position: 'absolute', top: 16, right: 16, zIndex: 10,
@@ -331,16 +372,23 @@ export default function App() {
       )}
 
       <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }}>
-        <color attach="background" args={['#87ceeb']} />
-        <fog attach="fog" args={['#87ceeb', 40, 90]} />
-        <ambientLight intensity={0.7} color="#fff4e0" />
+        <color attach="background" args={['#f4a460']} />
+        <fog attach="fog" args={['#f4a460', 45, 95]} />
+        <ambientLight intensity={0.55} color="#ffe8c0" />
         <directionalLight
-          position={[10, 20, 10]} intensity={1.8} color="#fff8e7" castShadow
+          position={[12, 22, 8]} intensity={2.0} color="#ffcc88" castShadow
           shadow-mapSize={[2048, 2048]}
-          shadow-camera-far={80} shadow-camera-left={-30}
-          shadow-camera-right={30} shadow-camera-top={30} shadow-camera-bottom={-30}
+          shadow-camera-far={90} shadow-camera-left={-35}
+          shadow-camera-right={35} shadow-camera-top={35} shadow-camera-bottom={-35}
         />
-        <directionalLight position={[-8, 10, -5]} intensity={0.3} color="#c8e6ff" />
+        <directionalLight position={[-10, 8, -5]} intensity={0.25} color="#a0c8ff" />
+        {/* Pool area — cool aqua fill */}
+        <pointLight position={[0, 4, -8]} intensity={6} distance={18} color="#40e0d0" decay={2} />
+        {/* Bar — warm amber */}
+        <pointLight position={[16, 4, -4]} intensity={5} distance={14} color="#ff9944" decay={2} />
+        {/* Reception arch — soft white */}
+        <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
+        <DJLights />
 
         <CameraRig target={position} mode={camMode} />
         <BeachClub />

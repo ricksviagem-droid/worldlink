@@ -1,3 +1,5 @@
+import { useFrame } from '@react-three/fiber'
+import { useRef } from 'react'
 import * as THREE from 'three'
 
 function Ground() {
@@ -10,6 +12,13 @@ function Ground() {
 }
 
 function Pool() {
+  const waterRef = useRef<THREE.MeshStandardMaterial>(null)
+  useFrame(({ clock }) => {
+    if (!waterRef.current) return
+    const t = clock.elapsedTime
+    waterRef.current.color.setHSL(0.54 + Math.sin(t * 0.4) * 0.025, 0.78, 0.50 + Math.sin(t * 0.6) * 0.04)
+    waterRef.current.opacity = 0.82 + Math.sin(t * 0.8) * 0.06
+  })
   return (
     <group>
       <mesh position={[0, 0.02, -8]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -18,7 +27,7 @@ function Pool() {
       </mesh>
       <mesh position={[0, 0.06, -8]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[10, 7]} />
-        <meshStandardMaterial color="#2bbcd4" transparent opacity={0.88} />
+        <meshStandardMaterial ref={waterRef} color="#2bbcd4" transparent opacity={0.88} />
       </mesh>
       <mesh position={[0, 0.18, -8]}>
         <boxGeometry args={[10.5, 0.25, 7.5]} />
