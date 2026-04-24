@@ -93,13 +93,14 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }
       return
     }
 
-    // Auto-follow: when moving, swing camera behind the player
-    if (speed > 1.0) {
+    // Auto-follow: swing camera behind player whenever moving
+    // Rate matches character TURN_SPD so camera never lags behind rotation
+    if (speed > 0.15) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
       while (diff > Math.PI) diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, 5 * delta)
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 6 * delta)
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
@@ -242,7 +243,7 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
     let diff = target - smoothRot.current
     while (diff > Math.PI) diff -= Math.PI * 2
     while (diff < -Math.PI) diff += Math.PI * 2
-    smoothRot.current += diff * Math.min(1, 12 * delta)
+    smoothRot.current += diff * Math.min(1, Math.PI * 6 * delta)
     groupRef.current.rotation.y = smoothRot.current
   })
 
