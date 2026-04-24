@@ -1,4 +1,5 @@
 import { useFrame } from '@react-three/fiber'
+import { useGLTF } from '@react-three/drei'
 import { useRef } from 'react'
 import * as THREE from 'three'
 
@@ -848,6 +849,32 @@ function Clouds() {
   )
 }
 
+// ── GLB Athlete NPC — static mesh + procedural idle ──────────────────────────
+function AthleteNPC({ position, rotation = 0, phase = 0 }: {
+  position: [number, number, number]; rotation?: number; phase?: number
+}) {
+  const { scene } = useGLTF('/athlete_in_black_and_red_activewear.glb')
+  const groupRef   = useRef<THREE.Group>(null)
+  const cloned     = useRef(scene.clone(true))
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
+    const t = clock.elapsedTime + phase
+    // Subtle breathing — scale y
+    groupRef.current.scale.y = 1 + Math.sin(t * 1.6) * 0.012
+    // Slight side sway
+    groupRef.current.rotation.z = Math.sin(t * 0.9 + 1.1) * 0.018
+    // Weight shift — tiny y bob
+    groupRef.current.position.y = position[1] + Math.abs(Math.sin(t * 1.6)) * 0.03
+  })
+
+  return (
+    <group ref={groupRef} position={position} rotation={[0, rotation, 0]} scale={[1, 1, 1]}>
+      <primitive object={cloned.current} />
+    </group>
+  )
+}
+
 export function BeachClub() {
   return (
     <>
@@ -948,6 +975,13 @@ export function BeachClub() {
       <TikiTorch position={[7,  0, -17]} />
       <TikiTorch position={[-7, 0,  -4]} />
       <TikiTorch position={[7,  0,  -4]} />
+
+      {/* GLB Athletes — pool area and beach */}
+      <AthleteNPC position={[6,   0, -8]}  rotation={-0.8} phase={0.0} />
+      <AthleteNPC position={[-10, 0, -30]} rotation={0.4}  phase={1.3} />
+      <AthleteNPC position={[10,  0, -30]} rotation={2.8}  phase={2.6} />
     </>
   )
 }
+
+useGLTF.preload('/athlete_in_black_and_red_activewear.glb')
