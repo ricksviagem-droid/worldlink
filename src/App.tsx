@@ -54,13 +54,14 @@ function canMove(x: number, z: number): boolean {
 }
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
-function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }: {
+function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, hasInputRef }: {
   targetRef: { current: { x: number; z: number } }
   mode: CamMode
   facingRef: React.RefObject<number>
   zoomRef: React.RefObject<number>
   camYawRef: React.RefObject<number>
   velMagRef: { current: number }
+  hasInputRef: { current: boolean }
 }) {
   const { camera } = useThree()
   const cam = camera as THREE.PerspectiveCamera
@@ -98,13 +99,14 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }
       return
     }
 
-    // Very lazy auto-follow — only when moving at real speed, avoids feedback loop on start
-    if (speed > 1.8) {
+    // Drift camera behind character ONLY when player has released input and is coasting to a stop.
+    // While input is active, camYawRef is frozen → no feedback loop → no spinning.
+    if (!hasInputRef.current && speed < 0.8 && speed > 0.02) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
       while (diff > Math.PI) diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 0.5 * delta)
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 0.3 * delta)
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
@@ -157,7 +159,7 @@ function DJLights() {
 // ─── Movement System (runs inside Canvas via useFrame) ───────────────────────
 function MovementSystem({
   keysRef, mobileInputRef, velocityRef, positionRef, facingRef, velMagRef,
-  camYawRef, setPosition, chatOpenRef,
+  camYawRef, hasInputRef, setPosition, chatOpenRef,
 }: {
   keysRef: { current: Record<string, boolean> }
   mobileInputRef: { current: { x: number; z: number } }
@@ -166,6 +168,7 @@ function MovementSystem({
   facingRef: { current: number }
   velMagRef: { current: number }
   camYawRef: { current: number }
+  hasInputRef: { current: boolean }
   setPosition: (p: PlayerState) => void
   chatOpenRef: React.RefObject<boolean>
 }) {
@@ -173,7 +176,7 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 5.2, ACCEL = 22, DECEL = 18, TURN_SPD = Math.PI * 2.5
+    const MAX_SPEED = 5.2, ACCEL = 20, DECEL = 16, TURN_SPD = Math.PI * 1.5
 
     // Raw screen-space input (up = -iz, right = +ix)
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
@@ -183,15 +186,15 @@ function MovementSystem({
     if (keys['a'] || keys['ArrowLeft'])  ix -= 1
     if (keys['d'] || keys['ArrowRight']) ix += 1
 
-    // Snapshot camera yaw once per frame — prevents mid-frame feedback loop
+    // Snapshot camera yaw once — prevents any mid-frame feedback loop
     const yaw = camYawRef.current
     const wix = iz * Math.sin(yaw) + ix * Math.cos(yaw)
     const wiz = iz * Math.cos(yaw) - ix * Math.sin(yaw)
 
     const len = Math.sqrt(wix * wix + wiz * wiz)
-    // Separate thresholds: low for velocity, higher for rotation (avoids spin on light touch)
-    const hasInput  = len > 0.05
-    const hasTurn   = len > 0.2
+    const hasInput = len > 0.05
+    const hasTurn  = len > 0.25   // higher threshold so light touch doesn't snap direction
+    hasInputRef.current = hasInput  // tell CameraRig to freeze yaw while player is pushing
     if (hasInput) {
       const nx = wix / len, nz = wiz / len
       velocityRef.current.x += (nx * MAX_SPEED - velocityRef.current.x) * Math.min(1, ACCEL * delta)
@@ -456,6 +459,7 @@ export default function App() {
   const positionRef    = useRef({ x: 0, z: 0 })
   const mobileInputRef = useRef({ x: 0, z: 0 })
   const velMagRef      = useRef(0)
+  const hasInputRef    = useRef(false)
 
   // Profile
   const [myProfile, setMyProfile] = useState<PlayerProfile | null>(() => {
@@ -1064,8 +1068,8 @@ export default function App() {
         <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
         <DJLights />
 
-        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} />
-        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
+        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} hasInputRef={hasInputRef} />
+        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} hasInputRef={hasInputRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
         <BeachClub />
         <ReceptionArea />
         <ValentinaBuggy />
