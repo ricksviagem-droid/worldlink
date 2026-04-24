@@ -131,12 +131,19 @@ app.get(/(.*)/, (_req, res) => {
 
 // Multiplayer
 const players = {}
+const profiles = {}
+const likes = {}  // { socketId: Set<targetId> }
 
 io.on('connection', (socket) => {
   console.log('player connected:', socket.id)
   players[socket.id] = { x: 0, z: 0 }
   socket.emit('currentPlayers', players)
   socket.broadcast.emit('newPlayer', { id: socket.id, player: players[socket.id] })
+
+  // Send existing profiles to the newcomer
+  const existingProfiles = {}
+  Object.entries(profiles).forEach(([id, p]) => { if (id !== socket.id) existingProfiles[id] = p })
+  if (Object.keys(existingProfiles).length) socket.emit('existingProfiles', existingProfiles)
 
   socket.on('move', (data) => {
     if (players[socket.id]) {
@@ -145,10 +152,28 @@ io.on('connection', (socket) => {
     }
   })
 
+  socket.on('setProfile', (profile) => {
+    profiles[socket.id] = profile
+    socket.broadcast.emit('playerProfile', { id: socket.id, profile })
+  })
+
+  socket.on('sendLike', ({ targetId, isSuper }) => {
+    if (!likes[socket.id]) likes[socket.id] = new Set()
+    likes[socket.id].add(targetId)
+    io.to(targetId).emit('receiveLike', { fromId: socket.id, isSuper })
+    // Check mutual like → match
+    if (likes[targetId]?.has(socket.id)) {
+      io.to(targetId).emit('newMatch', { withId: socket.id })
+      socket.emit('newMatch', { withId: targetId })
+    }
+  })
+
   socket.on('disconnect', () => {
     console.log('player disconnected:', socket.id)
     const leftId = socket.id
     delete players[leftId]
+    delete profiles[leftId]
+    delete likes[leftId]
     io.emit('playerLeft', leftId)
   })
 })

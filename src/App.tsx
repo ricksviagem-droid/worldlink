@@ -13,6 +13,10 @@ import { AICustomers, CUSTOMER_DEFS, SERVE_DISTANCE, type CustomerNeed } from '.
 import { MissionPanel } from './MissionPanel'
 import { ReceptionArea } from './ReceptionArea'
 import { ValentinaBuggy } from './ValentinaBuggy'
+import { ProfileSetup } from './ProfileSetup'
+import { ProfileCard } from './ProfileCard'
+import { Shop } from './Shop'
+import { getOutfit, STORAGE_KEY, type PlayerProfile } from './outfits'
 
 const socket = io()
 const isMobile = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
@@ -71,7 +75,7 @@ function DJLights() {
 }
 
 // ─── Players ─────────────────────────────────────────────────────────────────
-function LocalPlayer({ position }: { position: PlayerState }) {
+function LocalPlayer({ position, bodyColor, headColor }: { position: PlayerState; bodyColor: string; headColor: string }) {
   const movingRef = useRef(false)
   const prevPos = useRef(position)
   const stopTimer = useRef<ReturnType<typeof setTimeout>>()
@@ -85,12 +89,12 @@ function LocalPlayer({ position }: { position: PlayerState }) {
 
   return (
     <group position={[position.x, 0, position.z]}>
-      <CharacterMesh bodyColor="#e67e22" headColor="#f0c27f" movingRef={movingRef} />
+      <CharacterMesh bodyColor={bodyColor} headColor={headColor} movingRef={movingRef} />
     </group>
   )
 }
 
-function RemotePlayer({ targetPosition }: { targetPosition: PlayerState }) {
+function RemotePlayer({ targetPosition, bodyColor, headColor }: { targetPosition: PlayerState; bodyColor: string; headColor: string }) {
   const groupRef = useRef<THREE.Group>(null)
   const lp = useRef({ x: targetPosition.x, z: targetPosition.z })
   const movingRef = useRef(false)
@@ -106,7 +110,7 @@ function RemotePlayer({ targetPosition }: { targetPosition: PlayerState }) {
   })
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
-      <CharacterMesh bodyColor="#2980b9" headColor="#f0c27f" movingRef={movingRef} />
+      <CharacterMesh bodyColor={bodyColor} headColor={headColor} movingRef={movingRef} />
     </group>
   )
 }
@@ -177,6 +181,37 @@ export default function App() {
   const [camMode, setCamMode] = useState<CamMode>('iso')
   const chatOpenRef = useRef(false)
 
+  // Profile
+  const [myProfile, setMyProfile] = useState<PlayerProfile | null>(() => {
+    try { const s = localStorage.getItem(STORAGE_KEY); return s ? JSON.parse(s) : null } catch { return null }
+  })
+  const [showProfileSetup, setShowProfileSetup] = useState(false)
+  const [remoteProfiles, setRemoteProfiles] = useState<Record<string, PlayerProfile>>({})
+  const [nearbyPlayerId, setNearbyPlayerId] = useState<string | null>(null)
+  const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
+  const [matches, setMatches] = useState<Set<string>>(new Set())
+  const [showShop, setShowShop] = useState(false)
+  const [notification, setNotification] = useState<string | null>(null)
+
+  const myOutfit = getOutfit(myProfile?.outfitId ?? 'beach')
+
+  const handleSaveProfile = (profile: PlayerProfile) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
+    setMyProfile(profile)
+    setShowProfileSetup(false)
+    socket.emit('setProfile', profile)
+  }
+
+  const handleLike = (targetId: string, isSuper = false) => {
+    setLikedIds(prev => new Set(prev).add(targetId))
+    socket.emit('sendLike', { targetId, isSuper })
+  }
+
+  const handleChangeOutfit = (outfitId: string) => {
+    if (!myProfile) return
+    handleSaveProfile({ ...myProfile, outfitId })
+  }
+
   // Mission & customers
   const [xp, setXp] = useState(0)
   const [servedTotal, setServedTotal] = useState(0)
@@ -189,25 +224,52 @@ export default function App() {
 
   // Socket
   useEffect(() => {
-    const onConnect = () => { myId.current = socket.id || '' }
+    const onConnect = () => {
+      myId.current = socket.id || ''
+      if (myProfile) socket.emit('setProfile', myProfile)
+    }
     const onCurrentPlayers = (data: PlayersMap) => setPlayers(data)
     const onNewPlayer = ({ id, player }: { id: string; player: PlayerState }) =>
       setPlayers(prev => ({ ...prev, [id]: player }))
     const onUpdatePlayers = (data: PlayersMap) => setPlayers(data)
-    const onPlayerLeft = (id: string) =>
+    const onPlayerLeft = (id: string) => {
       setPlayers(prev => { const n = { ...prev }; delete n[id]; return n })
+      setRemoteProfiles(prev => { const n = { ...prev }; delete n[id]; return n })
+      setNearbyPlayerId(prev => prev === id ? null : prev)
+    }
+    const onPlayerProfile = ({ id, profile }: { id: string; profile: PlayerProfile }) =>
+      setRemoteProfiles(prev => ({ ...prev, [id]: profile }))
+    const onExistingProfiles = (data: Record<string, PlayerProfile>) =>
+      setRemoteProfiles(data)
+    const onReceiveLike = ({ isSuper }: { fromId: string; isSuper: boolean }) => {
+      setNotification(isSuper ? '⭐ Você recebeu um Super Like!' : '❤️ Alguém curtiu você!')
+      setTimeout(() => setNotification(null), 4000)
+    }
+    const onNewMatch = ({ withId }: { withId: string }) => {
+      setMatches(prev => new Set(prev).add(withId))
+      setNotification('💞 É um Match!')
+      setTimeout(() => setNotification(null), 5000)
+    }
 
     socket.on('connect', onConnect)
     socket.on('currentPlayers', onCurrentPlayers)
     socket.on('newPlayer', onNewPlayer)
     socket.on('updatePlayers', onUpdatePlayers)
     socket.on('playerLeft', onPlayerLeft)
+    socket.on('playerProfile', onPlayerProfile)
+    socket.on('existingProfiles', onExistingProfiles)
+    socket.on('receiveLike', onReceiveLike)
+    socket.on('newMatch', onNewMatch)
     return () => {
       socket.off('connect', onConnect)
       socket.off('currentPlayers', onCurrentPlayers)
       socket.off('newPlayer', onNewPlayer)
       socket.off('updatePlayers', onUpdatePlayers)
       socket.off('playerLeft', onPlayerLeft)
+      socket.off('playerProfile', onPlayerProfile)
+      socket.off('existingProfiles', onExistingProfiles)
+      socket.off('receiveLike', onReceiveLike)
+      socket.off('newMatch', onNewMatch)
     }
   }, [])
 
@@ -224,7 +286,7 @@ export default function App() {
     if (nearby && nearby.id !== prevNearby.current) audio.playProximity()
     prevNearby.current = nearby?.id ?? null
 
-    // Customer proximity (check against spawn positions)
+    // Customer proximity
     if (!nearby) {
       const nearCust = CUSTOMER_DEFS.find(c => {
         const dx = position.x - c.spawn[0]
@@ -235,7 +297,18 @@ export default function App() {
     } else {
       setNearbyCustomerId(null)
     }
-  }, [position])
+
+    // Nearby remote player — find closest within 5 units
+    const nearPlayer = Object.entries(players).reduce<[string, number] | null>((best, [id, p]) => {
+      if (id === myId.current) return best
+      const dx = position.x - p.x
+      const dz = position.z - p.z
+      const dist = Math.sqrt(dx * dx + dz * dz)
+      if (dist < 5 && (!best || dist < best[1])) return [id, dist]
+      return best
+    }, null)
+    setNearbyPlayerId(nearPlayer?.[0] ?? null)
+  }, [position, players])
 
   // Keyboard
   useEffect(() => {
@@ -317,17 +390,34 @@ export default function App() {
     }
   }
 
+  // Show profile setup on first visit or when editing
+  if (!myProfile || showProfileSetup) {
+    return <ProfileSetup initial={myProfile} onSave={handleSaveProfile} />
+  }
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', background: '#f4a460' }}>
-      {/* HUD */}
-      <div style={{
-        position: 'absolute', top: 16, right: 16, zIndex: 10,
-        background: 'rgba(0,0,0,0.45)', color: 'white',
-        padding: '6px 16px', borderRadius: 20,
-        fontFamily: 'sans-serif', fontSize: 14,
-        backdropFilter: 'blur(6px)',
-      }}>
-        {Object.keys(players).length} online
+      {/* HUD — top right */}
+      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
+        {/* Avatar button */}
+        <button onClick={() => setShowProfileSetup(true)} title="Editar perfil" style={{
+          width: 38, height: 38, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)',
+          background: myOutfit.bodyColor, cursor: 'pointer', fontSize: 18,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>{myProfile.faceEmoji}</button>
+        {/* Shop button */}
+        <button onClick={() => setShowShop(true)} style={{
+          padding: '6px 14px', borderRadius: 20, border: 'none',
+          background: 'rgba(0,0,0,0.45)', color: '#fff',
+          fontFamily: 'sans-serif', fontSize: 13, cursor: 'pointer', backdropFilter: 'blur(6px)',
+        }}>🛍️</button>
+        {/* Online count */}
+        <div style={{
+          background: 'rgba(0,0,0,0.45)', color: 'white',
+          padding: '6px 14px', borderRadius: 20,
+          fontFamily: 'sans-serif', fontSize: 13,
+          backdropFilter: 'blur(6px)',
+        }}>{Object.keys(players).length} online</div>
       </div>
 
       <div style={{
@@ -356,8 +446,40 @@ export default function App() {
         ))}
       </div>
 
+      {/* Shop */}
+      {showShop && (
+        <Shop myProfile={myProfile!} onChangeOutfit={handleChangeOutfit} onClose={() => setShowShop(false)} />
+      )}
+
+      {/* Notification toast */}
+      {notification && (
+        <div style={{
+          position: 'absolute', top: 70, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 60, background: 'rgba(6,6,18,0.92)', backdropFilter: 'blur(12px)',
+          color: '#fff', padding: '12px 24px', borderRadius: 20,
+          fontFamily: '-apple-system, sans-serif', fontSize: 15, fontWeight: 700,
+          border: '1.5px solid rgba(243,156,18,0.5)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+          animation: 'fadeIn 0.2s ease',
+          pointerEvents: 'none',
+        }}>{notification}</div>
+      )}
+
       {/* Chat panel */}
       {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
+
+      {/* Nearby player profile card */}
+      {nearbyPlayerId && remoteProfiles[nearbyPlayerId] && (
+        <ProfileCard
+          profile={remoteProfiles[nearbyPlayerId]}
+          myInterests={myProfile?.interests ?? []}
+          isLiked={likedIds.has(nearbyPlayerId)}
+          isMatch={matches.has(nearbyPlayerId)}
+          onLike={() => handleLike(nearbyPlayerId)}
+          onSuperLike={() => handleLike(nearbyPlayerId, true)}
+          onClose={() => setNearbyPlayerId(null)}
+        />
+      )}
 
       {/* Mission panel */}
       <MissionPanel xp={xp} servedTotal={servedTotal} justServed={justServed} />
@@ -400,10 +522,11 @@ export default function App() {
         ))}
 
         <AICustomers needs={customerNeeds} nearbyId={nearbyCustomerId} />
-        <LocalPlayer position={position} />
+        <LocalPlayer position={position} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} />
         {Object.entries(players).map(([id, player]) => {
           if (id === myId.current) return null
-          return <RemotePlayer key={id} targetPosition={player} />
+          const rOutfit = getOutfit(remoteProfiles[id]?.outfitId ?? 'ocean')
+          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} />
         })}
       </Canvas>
     </div>
