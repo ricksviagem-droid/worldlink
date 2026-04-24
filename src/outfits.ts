@@ -15,6 +15,7 @@ export interface PlayerProfile {
   outfitId: string
   faceEmoji: string
   photoUrl?: string
+  photos?: string[]       // up to 3 photos from device
   nationality?: string  // ISO 3166-1 alpha-2, e.g. 'BR'
   showNameplate?: boolean  // default true; false = invisible mode
 }

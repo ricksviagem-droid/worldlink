@@ -232,6 +232,11 @@ io.on('connection', (socket) => {
     io.to(toId).emit('receiveDM', { fromId: socket.id, text, timestamp: msg.timestamp })
   })
 
+  socket.on('sendFlirt', ({ toId, emoji }) => {
+    const name = profiles[socket.id]?.name ?? 'Alguém'
+    io.to(toId).emit('receiveFlirt', { fromId: socket.id, emoji, name })
+  })
+
   socket.on('getDMHistory', ({ withId }) => {
     const key = dmRoom(socket.id, withId)
     socket.emit('dmHistory', { withId, messages: dms[key] || [] })

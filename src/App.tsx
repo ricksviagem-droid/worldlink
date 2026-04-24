@@ -856,6 +856,19 @@ export default function App() {
     const onDmHistory = ({ withId, messages }: { withId: string; messages: DMMessage[] }) => {
       setDmMessages(prev => ({ ...prev, [withId]: messages }))
     }
+    const onReceiveFlirt = ({ fromId, emoji, name }: { fromId: string; emoji: string; name: string }) => {
+      setNotification(`${emoji} ${name} mandou um flerte!`)
+      setTimeout(() => setNotification(null), 4000)
+      // Also deliver flirt as a DM message so it appears in the conversation
+      setDmMessages(prev => ({
+        ...prev,
+        [fromId]: [...(prev[fromId] ?? []), { fromId, text: emoji, timestamp: Date.now() }],
+      }))
+      setActiveDMId(cur => {
+        if (cur !== fromId) setUnreadDMs(u => new Set([...u, fromId]))
+        return cur
+      })
+    }
 
     socket.on('connect', onConnect)
     socket.on('currentPlayers', onCurrentPlayers)
@@ -868,6 +881,7 @@ export default function App() {
     socket.on('newMatch', onNewMatch)
     socket.on('receiveDM', onReceiveDM)
     socket.on('dmHistory', onDmHistory)
+    socket.on('receiveFlirt', onReceiveFlirt)
     return () => {
       socket.off('connect', onConnect)
       socket.off('currentPlayers', onCurrentPlayers)
@@ -880,6 +894,7 @@ export default function App() {
       socket.off('receiveDM', onReceiveDM)
       socket.off('dmHistory', onDmHistory)
       socket.off('newMatch', onNewMatch)
+      socket.off('receiveFlirt', onReceiveFlirt)
     }
   }, [])
 
@@ -1315,13 +1330,19 @@ export default function App() {
       {/* DM panel */}
       {activeDMId && (() => {
         const rp = remoteProfiles[activeDMId]
-        if (!rp) return null
-        const outfit = getOutfit(rp.outfitId)
-        const partnerCard: CardProfile = { name: rp.name, faceEmoji: rp.faceEmoji, bodyColor: outfit.bodyColor, headColor: outfit.headColor, bio: rp.bio, interests: rp.interests, isNpc: false }
+        const outfit = rp ? getOutfit(rp.outfitId) : getOutfit('beach')
+        const partnerCard: CardProfile = {
+          name: rp?.name ?? 'Player', faceEmoji: rp?.faceEmoji ?? '🙂',
+          bodyColor: outfit.bodyColor, headColor: outfit.headColor,
+          bio: rp?.bio ?? '', interests: rp?.interests ?? [], isNpc: false,
+          photoUrl: rp?.photoUrl,
+        }
         const myOutfitColors = getOutfit(myProfile!.outfitId)
         return (
           <DMPanel
             partnerProfile={partnerCard}
+            partnerPhotos={rp?.photos}
+            isMatch={matches.has(activeDMId)}
             myId={myId.current}
             myEmoji={myProfile!.faceEmoji}
             myBodyColor={myOutfitColors.bodyColor}

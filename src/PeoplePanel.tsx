@@ -156,13 +156,11 @@ export function PeoplePanel({
                   background: likedIds.has(pid) ? 'rgba(231,76,60,0.3)' : 'rgba(231,76,60,0.85)',
                   color: '#fff', fontSize: 13, fontWeight: 700, cursor: likedIds.has(pid) ? 'default' : 'pointer',
                 }}>{likedIds.has(pid) ? '❤️ Curtido' : '❤️ Curtir'}</button>
-                {matches.has(pid) && (
-                  <button onClick={() => { onOpenDM(pid); onClose() }} style={{
-                    flex: 1, padding: '10px 0', borderRadius: 14, fontFamily: 'inherit',
-                    border: '1.5px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.07)',
-                    color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  }}>💬 Mensagem</button>
-                )}
+                <button onClick={() => { onOpenDM(pid); onClose() }} style={{
+                  flex: 1, padding: '10px 0', borderRadius: 14, fontFamily: 'inherit',
+                  border: '1.5px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.07)',
+                  color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}>💬 Mensagem</button>
               </>
             ) : null}
           </div>
