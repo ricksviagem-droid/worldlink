@@ -464,9 +464,9 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
   )
 }
 
-function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsColor, name, photoUrl, nationality, showNameplate }: {
+function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsColor, name, photoUrl, nationality, showNameplate, nearby }: {
   targetPosition: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string
-  name?: string; photoUrl?: string; nationality?: string; showNameplate?: boolean
+  name?: string; photoUrl?: string; nationality?: string; showNameplate?: boolean; nearby?: boolean
 }) {
   const groupRef  = useRef<THREE.Group>(null)
   const lp        = useRef({ x: targetPosition.x, z: targetPosition.z })
@@ -497,12 +497,24 @@ function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsCo
       {(showNameplate ?? true) && (
         <Html position={[0, 2.45, 0]} center distanceFactor={12}>
           <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+            fontFamily: '-apple-system, sans-serif',
+          }}>
+          {nearby && (
+            <div style={{
+              background: 'rgba(243,156,18,0.92)', color: '#111',
+              padding: '2px 10px', borderRadius: 10, fontSize: 10, fontWeight: 700,
+              boxShadow: '0 2px 8px rgba(243,156,18,0.5)', marginBottom: 2,
+            }}>Press E to chat</div>
+          )}
+          <div style={{
             display: 'flex', alignItems: 'center', gap: 5,
-            background: 'rgba(8,8,20,0.78)', backdropFilter: 'blur(10px)',
-            color: '#fff', padding: '3px 8px 3px 3px', borderRadius: 22, fontSize: 12,
-            fontFamily: '-apple-system, sans-serif', fontWeight: 600,
-            whiteSpace: 'nowrap', border: '1px solid rgba(76,175,80,0.35)',
-            boxShadow: '0 2px 10px rgba(0,0,0,0.45)',
+            background: nearby ? 'rgba(243,156,18,0.9)' : 'rgba(8,8,20,0.78)',
+            backdropFilter: 'blur(10px)',
+            color: nearby ? '#111' : '#fff', padding: '3px 8px 3px 3px', borderRadius: 22, fontSize: 12,
+            fontWeight: 600,
+            whiteSpace: 'nowrap', border: nearby ? '1px solid rgba(243,156,18,0.6)' : '1px solid rgba(76,175,80,0.35)',
+            boxShadow: nearby ? '0 2px 12px rgba(243,156,18,0.5)' : '0 2px 10px rgba(0,0,0,0.45)',
           }}>
             {/* Mini avatar / photo */}
             <div style={{
@@ -522,6 +534,7 @@ function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsCo
                 {nationality.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')}
               </span>
             )}
+          </div>
           </div>
         </Html>
       )}
@@ -955,6 +968,11 @@ export default function App() {
             setActiveChatNpc(nearbyNpc)
             chatOpenRef.current = true
             audio.playOpen()
+          } else if (nearbyPlayerId) {
+            setActiveDMId(nearbyPlayerId)
+            chatOpenRef.current = true
+            audio.playOpen()
+            socket.emit('getDMHistory', { withId: nearbyPlayerId })
           } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
             handleServeCustomer(nearbyCustomerId)
           }
@@ -1068,6 +1086,11 @@ export default function App() {
       setActiveChatNpc(nearbyNpc)
       chatOpenRef.current = true
       audio.playOpen()
+    } else if (nearbyPlayerId && !chatOpenRef.current) {
+      setActiveDMId(nearbyPlayerId)
+      chatOpenRef.current = true
+      audio.playOpen()
+      socket.emit('getDMHistory', { withId: nearbyPlayerId })
     } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
       handleServeCustomer(nearbyCustomerId)
     }
@@ -1309,8 +1332,8 @@ export default function App() {
               setDmMessages(prev => ({ ...prev, [activeDMId]: [...(prev[activeDMId] ?? []), msg] }))
               socket.emit('sendDM', { toId: activeDMId, text })
             }}
-            onBack={() => setActiveDMId(null)}
-            onClose={() => { setActiveDMId(null); setShowMatches(false) }}
+            onBack={() => { setActiveDMId(null); chatOpenRef.current = false }}
+            onClose={() => { setActiveDMId(null); setShowMatches(false); chatOpenRef.current = false }}
           />
         )
       })()}
@@ -1423,7 +1446,7 @@ export default function App() {
         <MobileControls
           onMove={handleMobileMove}
           onTalk={handleMobileTalk}
-          nearNpc={!!nearbyNpc || (!!nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy')}
+          nearNpc={!!nearbyNpc || !!nearbyPlayerId || (!!nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy')}
         />
       )}
 
@@ -1459,7 +1482,7 @@ export default function App() {
           if (id === myId.current) return null
           const rProfile = remoteProfiles[id]
           const rOutfit = getOutfit(rProfile?.outfitId ?? 'ocean')
-          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} hairColor={rOutfit.hairColor} pantsColor={rOutfit.pantsColor} name={rProfile?.name} photoUrl={rProfile?.photoUrl} nationality={rProfile?.nationality} showNameplate={rProfile?.showNameplate} />
+          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} hairColor={rOutfit.hairColor} pantsColor={rOutfit.pantsColor} name={rProfile?.name} photoUrl={rProfile?.photoUrl} nationality={rProfile?.nationality} showNameplate={rProfile?.showNameplate} nearby={nearbyPlayerId === id} />
         })}
       </Canvas>
     </div>
