@@ -692,6 +692,158 @@ function BackgroundCustomer({ position, color, rotation = 0 }: {
   )
 }
 
+function ClubBuilding() {
+  const wall  = '#f8f0e0'
+  const trim  = '#e8d8b8'
+  const glass = '#6ab8d4'
+  return (
+    <group position={[0, 0, 28]}>
+      {/* Main facade — 3 floors */}
+      <mesh position={[0, 5.5, 0]} castShadow receiveShadow>
+        <boxGeometry args={[64, 11, 1.8]} />
+        <meshStandardMaterial color={wall} roughness={0.72} />
+      </mesh>
+      {/* Floor dividers */}
+      {[0, 3.5, 7.0, 10.5].map((y, i) => (
+        <mesh key={i} position={[0, y, -0.08]}>
+          <boxGeometry args={[64.4, 0.22, 2.0]} />
+          <meshStandardMaterial color={trim} roughness={0.55} />
+        </mesh>
+      ))}
+      {/* Ground-floor windows — large */}
+      {[-24, -16, -8, 0, 8, 16, 24].map((x, i) => (
+        <mesh key={i} position={[x, 1.8, -0.92]}>
+          <boxGeometry args={[5.5, 2.8, 0.12]} />
+          <meshStandardMaterial color={glass} metalness={0.22} roughness={0.06} transparent opacity={0.85} />
+        </mesh>
+      ))}
+      {/* 2nd floor windows */}
+      {[-22, -14, -6, 2, 10, 18, 26, -30].map((x, i) => (
+        <mesh key={i} position={[x, 5.5, -0.92]}>
+          <boxGeometry args={[4.2, 2.0, 0.12]} />
+          <meshStandardMaterial color={glass} metalness={0.22} roughness={0.06} transparent opacity={0.80} />
+        </mesh>
+      ))}
+      {/* 3rd floor — smaller windows */}
+      {[-26, -18, -10, -2, 6, 14, 22, 30].map((x, i) => (
+        <mesh key={i} position={[x, 8.8, -0.92]}>
+          <boxGeometry args={[3.5, 1.6, 0.10]} />
+          <meshStandardMaterial color={glass} metalness={0.25} roughness={0.05} transparent opacity={0.75} />
+        </mesh>
+      ))}
+      {/* Roof parapet */}
+      <mesh position={[0, 11.2, 0]}>
+        <boxGeometry args={[64.5, 0.55, 2.2]} />
+        <meshStandardMaterial color={trim} roughness={0.5} />
+      </mesh>
+      {/* CASA BLANCA sign */}
+      <mesh position={[0, 10.3, -0.95]}>
+        <boxGeometry args={[18, 1.4, 0.22]} />
+        <meshStandardMaterial color="#d4a017" metalness={0.55} roughness={0.3} emissive="#aa7a00" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Sign lights */}
+      <pointLight position={[-8, 10.8, 0.5]} intensity={6} distance={12} color="#ffcc44" decay={2} />
+      <pointLight position={[ 8, 10.8, 0.5]} intensity={6} distance={12} color="#ffcc44" decay={2} />
+      {/* Entrance arch */}
+      <mesh position={[0, 3.5, -0.85]}>
+        <torusGeometry args={[3.2, 0.28, 8, 18, Math.PI]} />
+        <meshStandardMaterial color={trim} roughness={0.45} />
+      </mesh>
+      {/* Entrance pillars */}
+      <mesh position={[-3.2, 1.75, -0.85]} castShadow>
+        <cylinderGeometry args={[0.28, 0.32, 3.5, 12]} />
+        <meshStandardMaterial color={trim} roughness={0.45} />
+      </mesh>
+      <mesh position={[ 3.2, 1.75, -0.85]} castShadow>
+        <cylinderGeometry args={[0.28, 0.32, 3.5, 12]} />
+        <meshStandardMaterial color={trim} roughness={0.45} />
+      </mesh>
+    </group>
+  )
+}
+
+function ParkedCar({ position, rotation = 0, bodyColor = '#e8e0d0' }: {
+  position: [number, number, number]; rotation?: number; bodyColor?: string
+}) {
+  const glass = '#3a7a9a'
+  const wheel = '#1a1a1a'
+  const rim   = '#c8c8c8'
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      {/* Body lower */}
+      <mesh position={[0, 0.42, 0]} castShadow>
+        <boxGeometry args={[1.80, 0.62, 4.20]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.28} metalness={0.35} />
+      </mesh>
+      {/* Cabin / roof */}
+      <mesh position={[0, 0.96, -0.15]} castShadow>
+        <boxGeometry args={[1.62, 0.58, 2.45]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.25} metalness={0.38} />
+      </mesh>
+      {/* Windshield */}
+      <mesh position={[0, 0.96, 1.02]} rotation={[-0.24, 0, 0]}>
+        <boxGeometry args={[1.55, 0.52, 0.08]} />
+        <meshStandardMaterial color={glass} metalness={0.30} roughness={0.04} transparent opacity={0.78} />
+      </mesh>
+      {/* Rear window */}
+      <mesh position={[0, 0.96, -1.28]} rotation={[0.24, 0, 0]}>
+        <boxGeometry args={[1.55, 0.52, 0.08]} />
+        <meshStandardMaterial color={glass} metalness={0.30} roughness={0.04} transparent opacity={0.75} />
+      </mesh>
+      {/* Side windows L */}
+      <mesh position={[-0.82, 0.97, -0.15]}>
+        <boxGeometry args={[0.08, 0.44, 1.85]} />
+        <meshStandardMaterial color={glass} metalness={0.28} roughness={0.04} transparent opacity={0.72} />
+      </mesh>
+      {/* Side windows R */}
+      <mesh position={[ 0.82, 0.97, -0.15]}>
+        <boxGeometry args={[0.08, 0.44, 1.85]} />
+        <meshStandardMaterial color={glass} metalness={0.28} roughness={0.04} transparent opacity={0.72} />
+      </mesh>
+      {/* Bumpers */}
+      <mesh position={[0, 0.30, 2.18]}>
+        <boxGeometry args={[1.75, 0.32, 0.16]} />
+        <meshStandardMaterial color="#aaaaaa" metalness={0.55} roughness={0.28} />
+      </mesh>
+      <mesh position={[0, 0.30, -2.18]}>
+        <boxGeometry args={[1.75, 0.32, 0.16]} />
+        <meshStandardMaterial color="#aaaaaa" metalness={0.55} roughness={0.28} />
+      </mesh>
+      {/* Headlights */}
+      <mesh position={[-0.55, 0.44, 2.12]}>
+        <boxGeometry args={[0.35, 0.20, 0.06]} />
+        <meshStandardMaterial color="#ffffee" emissive="#ffff88" emissiveIntensity={0.4} roughness={0.05} />
+      </mesh>
+      <mesh position={[ 0.55, 0.44, 2.12]}>
+        <boxGeometry args={[0.35, 0.20, 0.06]} />
+        <meshStandardMaterial color="#ffffee" emissive="#ffff88" emissiveIntensity={0.4} roughness={0.05} />
+      </mesh>
+      {/* Taillights */}
+      <mesh position={[-0.55, 0.44, -2.12]}>
+        <boxGeometry args={[0.35, 0.20, 0.06]} />
+        <meshStandardMaterial color="#cc2200" emissive="#aa1100" emissiveIntensity={0.5} roughness={0.08} />
+      </mesh>
+      <mesh position={[ 0.55, 0.44, -2.12]}>
+        <boxGeometry args={[0.35, 0.20, 0.06]} />
+        <meshStandardMaterial color="#cc2200" emissive="#aa1100" emissiveIntensity={0.5} roughness={0.08} />
+      </mesh>
+      {/* Wheels — 4 */}
+      {([[-0.94, 0.25, 1.35], [0.94, 0.25, 1.35], [-0.94, 0.25, -1.35], [0.94, 0.25, -1.35]] as [number,number,number][]).map((p, i) => (
+        <group key={i} position={p} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.30, 0.30, 0.22, 16]} />
+            <meshStandardMaterial color={wheel} roughness={0.75} />
+          </mesh>
+          <mesh position={[0, 0, i % 2 === 0 ? 0.115 : -0.115]}>
+            <cylinderGeometry args={[0.18, 0.18, 0.04, 12]} />
+            <meshStandardMaterial color={rim} metalness={0.7} roughness={0.25} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
 export function BeachClub() {
   return (
     <>
@@ -703,6 +855,7 @@ export function BeachClub() {
       <DJBooth />
       <BeachRestaurant />
       <BoundaryWalls />
+      <ClubBuilding />
       {/* Pool-side thatch kiosks — semi-transparent roof */}
       <ThatchKiosk position={[-11, 0, -8]} />
       <ThatchKiosk position={[11, 0, -12]} />
@@ -779,11 +932,42 @@ export function BeachClub() {
       <Umbrella position={[-3,  0, -35]}   color="#7ec8e3" />
       <Umbrella position={[3,   0, -35]}   color="#ff9966" />
 
-      {/* Tiki torches — 4 only (performance) */}
+      {/* Tiki torches */}
       <TikiTorch position={[-7, 0, -17]} />
       <TikiTorch position={[7,  0, -17]} />
       <TikiTorch position={[-7, 0,  -4]} />
       <TikiTorch position={[7,  0,  -4]} />
+
+      {/* Parked cars — entrance / parking area near front */}
+      <ParkedCar position={[-22, 0, 20]} rotation={0}             bodyColor="#c8d8e8" />
+      <ParkedCar position={[-16, 0, 20]} rotation={0}             bodyColor="#e8d8c8" />
+      <ParkedCar position={[-10, 0, 20]} rotation={0}             bodyColor="#c8e8c8" />
+      <ParkedCar position={[ 10, 0, 20]} rotation={Math.PI}       bodyColor="#e8c8c8" />
+      <ParkedCar position={[ 16, 0, 20]} rotation={Math.PI}       bodyColor="#d0d0d0" />
+      <ParkedCar position={[ 22, 0, 20]} rotation={Math.PI}       bodyColor="#e8e0a8" />
+
+      {/* Entrance palms flanking the main gate */}
+      <PalmTree position={[-5,  0, 22]} lean={-0.5} seed={20} />
+      <PalmTree position={[ 5,  0, 22]} lean={0.5}  seed={21} />
+
+      {/* Street lamps along entrance path */}
+      {([-20, -12, -4, 4, 12, 20] as number[]).map((x, i) => (
+        <group key={i} position={[x, 0, 15]}>
+          <mesh position={[0, 2.4, 0]} castShadow>
+            <cylinderGeometry args={[0.055, 0.075, 4.8, 8]} />
+            <meshStandardMaterial color="#888888" metalness={0.6} roughness={0.35} />
+          </mesh>
+          <mesh position={[0, 4.85, 0.28]}>
+            <boxGeometry args={[0.22, 0.18, 0.55]} />
+            <meshStandardMaterial color="#cccccc" metalness={0.5} roughness={0.3} />
+          </mesh>
+          <mesh position={[0, 4.82, 0.38]}>
+            <boxGeometry args={[0.18, 0.12, 0.04]} />
+            <meshStandardMaterial color="#ffffcc" emissive="#ffff88" emissiveIntensity={1.2} roughness={0.1} />
+          </mesh>
+          <pointLight position={[0, 4.8, 0.4]} intensity={8} distance={12} color="#ffeeaa" decay={2} />
+        </group>
+      ))}
     </>
   )
 }
