@@ -11,6 +11,8 @@ import { audio } from './audio'
 import { CharacterMesh } from './CharacterMesh'
 import { AICustomers, CUSTOMER_DEFS, SERVE_DISTANCE, type CustomerNeed } from './AICustomers'
 import { MissionPanel } from './MissionPanel'
+import { ReceptionArea } from './ReceptionArea'
+import { ValentinaBuggy } from './ValentinaBuggy'
 
 const socket = io()
 const isMobile = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
@@ -342,6 +344,8 @@ export default function App() {
 
         <CameraRig target={position} mode={camMode} />
         <BeachClub />
+        <ReceptionArea />
+        <ValentinaBuggy />
 
         {NPCS.map(npc => (
           <NPCCharacter key={npc.id} npc={npc} nearby={nearbyNpc?.id === npc.id} />
