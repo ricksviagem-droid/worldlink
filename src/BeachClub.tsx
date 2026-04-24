@@ -190,37 +190,66 @@ function PalmTree({ position, lean = 0, seed = 0 }: {
 }) {
   return (
     <group position={position}>
-      {/* Trunk — only this casts shadow */}
-      <mesh
-        position={[lean * 0.08, 2.8, lean * 0.04]}
-        rotation={[lean * 0.04, 0, lean * 0.052]}
-        castShadow
-      >
-        <cylinderGeometry args={[0.14, 0.27, 5.6, 8]} />
-        <meshStandardMaterial color="#8a6314" roughness={0.88} />
+      {/* Lower trunk — wide base tapering */}
+      <mesh position={[lean * 0.03, 1.85, lean * 0.015]} rotation={[lean * 0.03, 0, lean * 0.048 * 0.55]} castShadow>
+        <cylinderGeometry args={[0.17, 0.30, 3.7, 8]} />
+        <meshStandardMaterial color="#7a5c1e" roughness={0.92} />
       </mesh>
-      {/* Crown blob — gives the tree visual mass */}
-      <mesh position={[lean * 0.08, 5.6, lean * 0.04]}>
-        <sphereGeometry args={[1.1, 7, 5]} />
-        <meshStandardMaterial color="#2a8030" roughness={0.85} />
+      {/* Upper trunk — thinner, lean increases */}
+      <mesh position={[lean * 0.078, 4.55, lean * 0.039]} rotation={[lean * 0.028, 0, lean * 0.048 * 0.90]} castShadow>
+        <cylinderGeometry args={[0.12, 0.17, 2.0, 8]} />
+        <meshStandardMaterial color="#8a6824" roughness={0.90} />
       </mesh>
-      {/* Fronds — plane geometry, NO castShadow, DoubleSide */}
-      {Array.from({ length: 7 }, (_, i) => {
-        const deg = (i / 7) * 360 + seed * 18
-        const rad = (deg * Math.PI) / 180
+      {/* Bark rings */}
+      {[0.7, 1.5, 2.3, 3.1, 3.9, 4.7].map((y, i) => (
+        <mesh key={i} position={[lean * 0.08 * (y / 5.6), y, lean * 0.04 * (y / 5.6)]}>
+          <torusGeometry args={[0.21 - i * 0.012, 0.025, 4, 8]} />
+          <meshStandardMaterial color="#6a4812" roughness={0.96} />
+        </mesh>
+      ))}
+      {/* Coconut cluster at crown base */}
+      {[0, 1, 2].map(i => (
+        <mesh key={i} position={[lean * 0.08 + Math.cos(i * 2.1 + seed) * 0.13, 5.38, lean * 0.04 + Math.sin(i * 2.1 + seed) * 0.13]}>
+          <sphereGeometry args={[0.095, 7, 6]} />
+          <meshStandardMaterial color="#5a3a10" roughness={0.8} />
+        </mesh>
+      ))}
+      {/* Fronds — 9 arching leaves drooping from crown */}
+      {Array.from({ length: 9 }, (_, i) => {
+        const angle = (i / 9) * Math.PI * 2 + seed * 0.42
+        const droop = -0.58 - (i % 3) * 0.13
+        const length = 1.9 + (i % 3) * 0.28
+        const green = i % 2 === 0 ? '#2a8f3a' : '#32a044'
         return (
-          <mesh
-            key={i}
-            position={[lean * 0.08 + Math.cos(rad) * 1.0, 5.55, lean * 0.04 + Math.sin(rad) * 1.0]}
-            rotation={[-0.52 + (i % 2) * 0.12, rad, 0]}
-          >
-            <planeGeometry args={[0.6, 3.0]} />
-            <meshStandardMaterial
-              color={i % 2 === 0 ? '#2a8030' : '#349038'}
-              roughness={0.78}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
+          <group key={i} position={[lean * 0.08, 5.5, lean * 0.04]} rotation={[0, angle, droop]}>
+            {/* Rachis (frond stem + body) */}
+            <mesh position={[0, length * 0.52, 0]} scale={[0.36, 1, 0.20]}>
+              <capsuleGeometry args={[0.11, length, 4, 8]} />
+              <meshStandardMaterial color={green} roughness={0.70} />
+            </mesh>
+            {/* Leaflets — left */}
+            {[0.35, 0.65, 0.90, 1.15].map((t, li) => (
+              <mesh key={li}
+                position={[-0.18, length * t * 0.95, 0]}
+                rotation={[0, 0, -0.55 - t * 0.2]}
+                scale={[1, 0.55 - t * 0.08, 0.16]}
+              >
+                <capsuleGeometry args={[0.06, 0.46, 3, 6]} />
+                <meshStandardMaterial color={green} roughness={0.72} />
+              </mesh>
+            ))}
+            {/* Leaflets — right */}
+            {[0.35, 0.65, 0.90, 1.15].map((t, li) => (
+              <mesh key={li + 10}
+                position={[0.18, length * t * 0.95, 0]}
+                rotation={[0, 0, 0.55 + t * 0.2]}
+                scale={[1, 0.55 - t * 0.08, 0.16]}
+              >
+                <capsuleGeometry args={[0.06, 0.46, 3, 6]} />
+                <meshStandardMaterial color={i % 2 === 0 ? '#288038' : '#309840'} roughness={0.72} />
+              </mesh>
+            ))}
+          </group>
         )
       })}
     </group>
@@ -307,42 +336,42 @@ function TikiTorch({ position }: { position: [number, number, number] }) {
 function DJBooth() {
   return (
     <group position={[0, 0, -20]}>
-      {/* Raised stage */}
+      {/* Raised stage — dark polished wood */}
       <mesh position={[0, 0.13, 0]} castShadow receiveShadow>
         <boxGeometry args={[9.5, 0.26, 3.5]} />
-        <meshStandardMaterial color="#16162a" roughness={0.5} />
+        <meshStandardMaterial color="#2a1a0e" roughness={0.45} metalness={0.05} />
       </mesh>
-      {/* Stage LED edge front */}
+      {/* Stage LED edge front — warm amber */}
       <mesh position={[0, 0.27, 1.75]}>
         <boxGeometry args={[9.5, 0.05, 0.06]} />
-        <meshStandardMaterial color="#8888ff" emissive="#5555ff" emissiveIntensity={1.4} />
+        <meshStandardMaterial color="#ffcc44" emissive="#ff9900" emissiveIntensity={1.2} />
       </mesh>
       {/* Stage LED sides */}
       <mesh position={[-4.75, 0.27, 0]}>
         <boxGeometry args={[0.06, 0.05, 3.5]} />
-        <meshStandardMaterial color="#8888ff" emissive="#5555ff" emissiveIntensity={1.4} />
+        <meshStandardMaterial color="#ffcc44" emissive="#ff9900" emissiveIntensity={1.2} />
       </mesh>
       <mesh position={[4.75, 0.27, 0]}>
         <boxGeometry args={[0.06, 0.05, 3.5]} />
-        <meshStandardMaterial color="#8888ff" emissive="#5555ff" emissiveIntensity={1.4} />
+        <meshStandardMaterial color="#ffcc44" emissive="#ff9900" emissiveIntensity={1.2} />
       </mesh>
-      {/* Console */}
+      {/* Console — dark cedar wood */}
       <mesh position={[0, 0.72, -0.4]} castShadow>
         <boxGeometry args={[7.2, 1.18, 2.4]} />
-        <meshStandardMaterial color="#0e0e20" roughness={0.4} />
+        <meshStandardMaterial color="#1e1410" roughness={0.5} metalness={0.04} />
       </mesh>
       <mesh position={[0, 1.34, -0.72]} castShadow>
         <boxGeometry args={[6.4, 0.28, 1.5]} />
-        <meshStandardMaterial color="#080818" roughness={0.3} />
+        <meshStandardMaterial color="#150e08" roughness={0.35} metalness={0.08} />
       </mesh>
-      {/* Screens */}
+      {/* Screens — warm teal/coral beach vibes */}
       {([-2.4, 0, 2.4] as number[]).map((x, i) => (
         <mesh key={i} position={[x, 1.86, -1.1]}>
           <boxGeometry args={[1.6, 0.82, 0.06]} />
           <meshStandardMaterial
-            color="#050520"
-            emissive={(['#440099','#006644','#990022'] as string[])[i]}
-            emissiveIntensity={0.8}
+            color="#0a1218"
+            emissive={(['#007788','#cc5500','#006644'] as string[])[i]}
+            emissiveIntensity={0.85}
           />
         </mesh>
       ))}
@@ -351,18 +380,18 @@ function DJBooth() {
         <group key={i} position={[x, 0, -0.5]}>
           <mesh position={[0, 1.08, 0]} castShadow>
             <boxGeometry args={[0.95, 2.3, 0.88]} />
-            <meshStandardMaterial color="#0a0a0a" roughness={0.5} />
+            <meshStandardMaterial color="#181210" roughness={0.6} />
           </mesh>
           <mesh position={[0, 1.08, 0.44]}>
             <boxGeometry args={[0.72, 1.9, 0.03]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={0.85} />
+            <meshStandardMaterial color="#282018" roughness={0.85} />
           </mesh>
         </group>
       ))}
-      {/* Floor glow */}
+      {/* Floor — dark parquet */}
       <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[8.5, 3]} />
-        <meshStandardMaterial color="#090920" roughness={0.8} />
+        <meshStandardMaterial color="#16100a" roughness={0.65} />
       </mesh>
     </group>
   )
