@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
-import { useEffect, useRef, useState, Suspense } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 import * as THREE from 'three'
 import { BeachClub } from './BeachClub'
@@ -16,12 +16,8 @@ import { ShiftReport } from './ShiftReport'
 import { ReceptionArea } from './ReceptionArea'
 import { ValentinaBuggy } from './ValentinaBuggy'
 import { ProfileSetup } from './ProfileSetup'
-import { ProfileCard, type CardProfile } from './ProfileCard'
-import { MatchNotification, MatchesPanel } from './MatchesPanel'
-import { DMPanel, type DMMessage } from './DMPanel'
-import { PeoplePanel } from './PeoplePanel'
+import { ProfileCard } from './ProfileCard'
 import { Shop } from './Shop'
-import { SessionReport } from './SessionReport'
 import { getOutfit, STORAGE_KEY, type PlayerProfile } from './outfits'
 
 const socket = io()
@@ -58,22 +54,20 @@ function canMove(x: number, z: number): boolean {
 }
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
-function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, hasInputRef }: {
+function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }: {
   targetRef: { current: { x: number; z: number } }
   mode: CamMode
   facingRef: React.RefObject<number>
   zoomRef: React.RefObject<number>
   camYawRef: React.RefObject<number>
   velMagRef: { current: number }
-  hasInputRef: { current: boolean }
 }) {
   const { camera } = useThree()
   const cam = camera as THREE.PerspectiveCamera
   const m = useRef(mode); m.current = mode
-  const smooth     = useRef({ x: targetRef.current.x, z: targetRef.current.z })
-  const smoothY    = useRef(14)
-  const smoothDz   = useRef(12)
-  const smoothLook = useRef({ x: 0, y: 1.4, z: -8 })
+  const smooth   = useRef({ x: targetRef.current.x, z: targetRef.current.z })
+  const smoothY  = useRef(14)
+  const smoothDz = useRef(12)
 
   useFrame((_, delta) => {
     const zoom  = zoomRef.current ?? 1.0
@@ -85,32 +79,28 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
 
     if (m.current === 'pov') {
       const angle = facingRef.current ?? 0
-      // Keep camYawRef in sync so joystick input is relative to where you're looking
-      camYawRef.current = -angle
-      // Smooth camera position to player eye level
-      camera.position.x += (cur.x - camera.position.x) * Math.min(1, 14 * delta)
-      camera.position.y += (1.55  - camera.position.y) * Math.min(1, 14 * delta)
-      camera.position.z += (cur.z - camera.position.z) * Math.min(1, 14 * delta)
-      // Smooth look-at target so turning feels fluid
-      const lx = cur.x + Math.sin(angle) * 8
-      const lz = cur.z - Math.cos(angle) * 8
-      smoothLook.current.x += (lx - smoothLook.current.x) * Math.min(1, 6 * delta)
-      smoothLook.current.z += (lz - smoothLook.current.z) * Math.min(1, 6 * delta)
-      camera.lookAt(smoothLook.current.x, 1.4, smoothLook.current.z)
+      camera.position.x += (cur.x - camera.position.x) * 0.22
+      camera.position.y += (1.5   - camera.position.y) * 0.22
+      camera.position.z += (cur.z - camera.position.z) * 0.22
+      camera.lookAt(
+        cur.x + Math.sin(angle) * 8,
+        1.4,
+        cur.z - Math.cos(angle) * 8,
+      )
       const povFov = 75 + Math.min(speed / 5.2, 1) * 10
       cam.fov += (povFov / zoom - cam.fov) * Math.min(1, 6 * delta)
       cam.updateProjectionMatrix()
       return
     }
 
-    // Drift camera behind character ONLY when player has released input and is coasting to a stop.
-    // While input is active, camYawRef is frozen → no feedback loop → no spinning.
-    if (!hasInputRef.current && speed < 0.8 && speed > 0.02) {
+    // Auto-follow: swing camera behind player whenever moving
+    // Rate matches character TURN_SPD so camera never lags behind rotation
+    if (speed > 0.15) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
       while (diff > Math.PI) diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 0.3 * delta)
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 6 * delta)
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
@@ -134,221 +124,27 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
   return null
 }
 
-// ─── Day / Night cycle — REMOVED, always daytime now ────────────────────────
-function _DayNight_unused() {
-  const { scene } = useThree()
-  const sunRef  = useRef<THREE.DirectionalLight>(null)
-  const ambRef  = useRef<THREE.AmbientLight>(null)
-  const moonRef = useRef<THREE.DirectionalLight>(null)
-  const cA = useRef(new THREE.Color())
-  const cB = useRef(new THREE.Color())
-
-  useFrame(({ clock }) => {
-    if (!sunRef.current || !ambRef.current || !moonRef.current) return
-    const t = (clock.elapsedTime / 300) % 1   // 5-minute full cycle
-
-    type KF = { t: number; bg: string; fog: string; amb: string; ambI: number; sun: string; sunI: number; moonI: number }
-    const KFS: KF[] = [
-      { t:0.00, bg:'#7ec8e8', fog:'#f4a460', amb:'#ffe8c0', ambI:0.55, sun:'#ffcc88', sunI:2.0,  moonI:0.00 },
-      { t:0.28, bg:'#ff9933', fog:'#cc6622', amb:'#ff9944', ambI:0.48, sun:'#ff7722', sunI:1.5,  moonI:0.00 },
-      { t:0.42, bg:'#551122', fog:'#331100', amb:'#883355', ambI:0.25, sun:'#cc3311', sunI:0.45, moonI:0.10 },
-      { t:0.52, bg:'#060614', fog:'#040408', amb:'#1133aa', ambI:0.10, sun:'#223366', sunI:0.08, moonI:0.45 },
-      { t:0.78, bg:'#080820', fog:'#060610', amb:'#2244bb', ambI:0.12, sun:'#223366', sunI:0.08, moonI:0.40 },
-      { t:0.90, bg:'#ff6633', fog:'#cc3311', amb:'#ff8855', ambI:0.38, sun:'#ff9944', sunI:0.9,  moonI:0.08 },
-      { t:1.00, bg:'#7ec8e8', fog:'#f4a460', amb:'#ffe8c0', ambI:0.55, sun:'#ffcc88', sunI:2.0,  moonI:0.00 },
-    ]
-
-    let a = KFS[0], b = KFS[1]
-    for (let i = 0; i < KFS.length - 1; i++) {
-      if (t >= KFS[i].t && t <= KFS[i + 1].t) { a = KFS[i]; b = KFS[i + 1]; break }
-    }
-    const raw = (t - a.t) / (b.t - a.t + 0.00001)
-    const k   = raw * raw * (3 - 2 * raw)   // smoothstep
-
-    cA.current.set(a.bg);  cB.current.set(b.bg)
-    if (scene.background instanceof THREE.Color) scene.background.lerpColors(cA.current, cB.current, k)
-
-    if (scene.fog instanceof THREE.Fog) {
-      cA.current.set(a.fog); cB.current.set(b.fog)
-      scene.fog.color.lerpColors(cA.current, cB.current, k)
-    }
-
-    cA.current.set(a.amb); cB.current.set(b.amb)
-    ambRef.current.color.lerpColors(cA.current, cB.current, k)
-    ambRef.current.intensity = a.ambI + (b.ambI - a.ambI) * k
-
-    cA.current.set(a.sun); cB.current.set(b.sun)
-    sunRef.current.color.lerpColors(cA.current, cB.current, k)
-    sunRef.current.intensity = a.sunI + (b.sunI - a.sunI) * k
-
-    moonRef.current.intensity = a.moonI + (b.moonI - a.moonI) * k
-  })
-
-  return (
-    <>
-      <color attach="background" args={['#7ec8e8']} />
-      <ambientLight ref={ambRef} intensity={0.55} color="#ffe8c0" />
-      <directionalLight ref={sunRef} position={[12, 22, 8]} intensity={2.0} color="#ffcc88"
-        castShadow shadow-mapSize={[2048, 2048]}
-        shadow-camera-far={90} shadow-camera-left={-35}
-        shadow-camera-right={35} shadow-camera-top={35} shadow-camera-bottom={-35}
-      />
-      <directionalLight ref={moonRef} position={[-10, 18, -8]} intensity={0} color="#6688cc" />
-    </>
-  )
-}
-
-// ─── Sky / stars — REMOVED, always daytime now ──────────────────────────────
-function makeStarBelt(count: number): Float32Array {
-  const a = new Float32Array(count * 3)
-  for (let i = 0; i < count; i++) {
-    const theta = Math.random() * Math.PI * 2
-    const cosP  = Math.random() * 0.92 + 0.08
-    const r     = 175 + Math.random() * 15
-    a[i*3]   = r * Math.sqrt(1 - cosP * cosP) * Math.cos(theta)
-    a[i*3+1] = Math.max(6, r * cosP)
-    a[i*3+2] = r * Math.sqrt(1 - cosP * cosP) * Math.sin(theta) - 20
-  }
-  return a
-}
-
-function _Sky_unused() {
-  const sunGrp     = useRef<THREE.Group>(null)
-  const moonGrp    = useRef<THREE.Group>(null)
-  const starsSmRef = useRef<THREE.Points>(null)
-  const starsMdRef = useRef<THREE.Points>(null)
-  const starsLgRef = useRef<THREE.Points>(null)
-  const sunMat     = useRef<THREE.MeshStandardMaterial>(null)
-  const moonMat    = useRef<THREE.MeshStandardMaterial>(null)
-
-  const starsSm = useRef(makeStarBelt(520))
-  const starsMd = useRef(makeStarBelt(190))
-  const starsLg = useRef(makeStarBelt(85))
-
-  useFrame(({ clock }) => {
-    const t      = (clock.elapsedTime / 300) % 1
-    const arc    = t * Math.PI * 2
-    const R      = 145
-
-    // Night envelope (same keyframes as DayNight)
-    let night = 0
-    if      (t >= 0.42 && t < 0.52) night = (t - 0.42) / 0.10
-    else if (t >= 0.52 && t < 0.78) night = 1.0
-    else if (t >= 0.78 && t < 0.90) night = 1 - (t - 0.78) / 0.12
-
-    // Star layers with gentle global twinkle
-    const twinkle = 0.82 + Math.sin(clock.elapsedTime * 1.8) * 0.18
-    for (const ref of [starsSmRef, starsMdRef, starsLgRef]) {
-      if (ref.current) (ref.current.material as THREE.PointsMaterial).opacity = night * twinkle
-    }
-
-    // Sun arc
-    if (sunGrp.current) {
-      sunGrp.current.position.set(
-        Math.cos(arc) * R * 0.52,
-        Math.sin(arc) * R * 0.60 + 5,
-        -60,
-      )
-    }
-    if (sunMat.current) {
-      const sunset = Math.max(0, 1 - Math.abs(t - 0.30) / 0.13)
-      sunMat.current.emissive.setHSL(0.12 - sunset * 0.08, 1, 0.6)
-      sunMat.current.emissiveIntensity = 2.2 + (1 - sunset) * 1.8
-    }
-
-    // Moon arc (opposite side)
-    if (moonGrp.current) {
-      const ma = arc + Math.PI
-      moonGrp.current.position.set(
-        Math.cos(ma) * R * 0.52,
-        Math.sin(ma) * R * 0.60 + 5,
-        -60,
-      )
-    }
-    if (moonMat.current) moonMat.current.emissiveIntensity = 0.85 * night
-  })
-
-  return (
-    <>
-      {/* Stars — 3 layers of different sizes for depth */}
-      {([
-        [starsSmRef, starsSm.current, 0.26, '#ffffff'],
-        [starsMdRef, starsMd.current, 0.48, '#ddeeff'],
-        [starsLgRef, starsLg.current, 0.78, '#fff8e0'],
-      ] as const).map(([ref, arr, size, color], i) => (
-        <points key={i} ref={ref as React.RefObject<THREE.Points>} frustumCulled={false}>
-          <bufferGeometry>
-            <bufferAttribute attach="attributes-position" args={[arr, 3]} />
-          </bufferGeometry>
-          <pointsMaterial
-            color={color} size={size} transparent opacity={0}
-            sizeAttenuation depthWrite={false} fog={false}
-          />
-        </points>
-      ))}
-
-      {/* Sun */}
-      <group ref={sunGrp}>
-        <mesh>
-          <sphereGeometry args={[5.2, 14, 14]} />
-          <meshStandardMaterial ref={sunMat}
-            color="#fff7d0" emissive="#ffdd44" emissiveIntensity={3}
-            roughness={1} fog={false}
-          />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[9.5, 10, 10]} />
-          <meshStandardMaterial
-            color="#ffaa00" emissive="#ff8800" emissiveIntensity={0.35}
-            transparent opacity={0.13} depthWrite={false} fog={false}
-            side={THREE.BackSide}
-          />
-        </mesh>
-      </group>
-
-      {/* Moon */}
-      <group ref={moonGrp}>
-        <mesh>
-          <sphereGeometry args={[3.6, 14, 14]} />
-          <meshStandardMaterial ref={moonMat}
-            color="#ddeeff" emissive="#aabbdd" emissiveIntensity={0.85}
-            roughness={1} fog={false}
-          />
-        </mesh>
-        <mesh>
-          <sphereGeometry args={[6.2, 10, 10]} />
-          <meshStandardMaterial
-            color="#6688bb" emissive="#5577aa" emissiveIntensity={0.14}
-            transparent opacity={0.10} depthWrite={false} fog={false}
-            side={THREE.BackSide}
-          />
-        </mesh>
-      </group>
-    </>
-  )
-}
-
 // ─── Disco lights ────────────────────────────────────────────────────────────
 function DJLights() {
-  const refs = useRef<(THREE.PointLight | null)[]>([null, null, null, null, null])
+  const refs = [
+    useRef<THREE.PointLight>(null),
+    useRef<THREE.PointLight>(null),
+    useRef<THREE.PointLight>(null),
+  ]
   useFrame(({ clock }) => {
-    const t    = clock.elapsedTime
-    const beat = Math.pow(Math.max(0, Math.cos(t * 116 / 60 * Math.PI * 2)), 3)
-    refs.current.forEach((r, i) => {
-      if (!r) return
-      const angle = t * 0.55 + (i * Math.PI * 2) / 5
-      r.position.x = Math.cos(angle) * 5.5
-      r.position.y = 5 + beat * 1.8
-      r.position.z = -19 + Math.sin(angle * 1.15) * 2.2
-      r.color.setHSL((t * 0.08 + i * 0.2) % 1, 1, 0.55)
-      r.intensity = 10 + beat * 22
+    const t = clock.elapsedTime
+    refs.forEach((r, i) => {
+      if (!r.current) return
+      const angle = t * 0.65 + (i * Math.PI * 2) / 3
+      r.current.position.x = Math.cos(angle) * 5
+      r.current.position.z = -19 + Math.sin(angle * 1.3) * 1.5
+      r.current.color.setHSL((t * 0.07 + i * 0.33) % 1, 1, 0.55)
     })
   })
   return (
     <>
-      {[0, 1, 2, 3, 4].map(i => (
-        <pointLight key={i} ref={el => { refs.current[i] = el }}
-          position={[0, 5, -19]} intensity={10} distance={24} decay={2} />
+      {refs.map((r, i) => (
+        <pointLight key={i} ref={r} position={[0, 5, -19]} intensity={12} distance={20} decay={2} />
       ))}
     </>
   )
@@ -357,7 +153,7 @@ function DJLights() {
 // ─── Movement System (runs inside Canvas via useFrame) ───────────────────────
 function MovementSystem({
   keysRef, mobileInputRef, velocityRef, positionRef, facingRef, velMagRef,
-  camYawRef, hasInputRef, camModeRef, setPosition, chatOpenRef,
+  camYawRef, setPosition, chatOpenRef,
 }: {
   keysRef: { current: Record<string, boolean> }
   mobileInputRef: { current: { x: number; z: number } }
@@ -366,8 +162,6 @@ function MovementSystem({
   facingRef: { current: number }
   velMagRef: { current: number }
   camYawRef: { current: number }
-  hasInputRef: { current: boolean }
-  camModeRef: { current: CamMode }
   setPosition: (p: PlayerState) => void
   chatOpenRef: React.RefObject<boolean>
 }) {
@@ -375,8 +169,7 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 5.2, ACCEL = 20, DECEL = 16
-    const TURN_SPD = camModeRef.current === 'pov' ? Math.PI * 0.4 : Math.PI * 1.5
+    const MAX_SPEED = 5.2, ACCEL = 24, DECEL = 20, TURN_SPD = Math.PI * 5
 
     // Raw screen-space input (up = -iz, right = +ix)
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
@@ -386,26 +179,22 @@ function MovementSystem({
     if (keys['a'] || keys['ArrowLeft'])  ix -= 1
     if (keys['d'] || keys['ArrowRight']) ix += 1
 
-    // Snapshot camera yaw once — prevents any mid-frame feedback loop
+    // Rotate input by camera yaw → camera-relative world movement
     const yaw = camYawRef.current
     const wix = iz * Math.sin(yaw) + ix * Math.cos(yaw)
     const wiz = iz * Math.cos(yaw) - ix * Math.sin(yaw)
 
     const len = Math.sqrt(wix * wix + wiz * wiz)
-    const hasInput = len > 0.05
-    const hasTurn  = len > 0.25   // higher threshold so light touch doesn't snap direction
-    hasInputRef.current = hasInput  // tell CameraRig to freeze yaw while player is pushing
+    const hasInput = len > 0.01
     if (hasInput) {
       const nx = wix / len, nz = wiz / len
       velocityRef.current.x += (nx * MAX_SPEED - velocityRef.current.x) * Math.min(1, ACCEL * delta)
       velocityRef.current.z += (nz * MAX_SPEED - velocityRef.current.z) * Math.min(1, ACCEL * delta)
-      if (hasTurn) {
-        const targetFacing = Math.atan2(nx, -nz)
-        let diff = targetFacing - facingRef.current
-        while (diff > Math.PI) diff -= Math.PI * 2
-        while (diff < -Math.PI) diff += Math.PI * 2
-        facingRef.current += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPD * delta)
-      }
+      const targetFacing = Math.atan2(nx, -nz)
+      let diff = targetFacing - facingRef.current
+      while (diff > Math.PI) diff -= Math.PI * 2
+      while (diff < -Math.PI) diff += Math.PI * 2
+      facingRef.current += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPD * delta)
     } else {
       velocityRef.current.x *= Math.max(0, 1 - DECEL * delta)
       velocityRef.current.z *= Math.max(0, 1 - DECEL * delta)
@@ -465,13 +254,12 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
   )
 }
 
-function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsColor, name, photoUrl, nationality, showNameplate, nearby }: {
-  targetPosition: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string
-  name?: string; photoUrl?: string; nationality?: string; showNameplate?: boolean; nearby?: boolean
+function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsColor, name }: {
+  targetPosition: PlayerState; bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string; name?: string
 }) {
   const groupRef  = useRef<THREE.Group>(null)
   const lp        = useRef({ x: targetPosition.x, z: targetPosition.z })
-  const smoothRot = useRef(Math.PI)
+  const smoothRot = useRef(0)
   const movingRef = useRef(false)
   useFrame((_, delta) => {
     if (!groupRef.current) return
@@ -495,59 +283,25 @@ function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsCo
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
       <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
-      {(showNameplate ?? true) && (
-        <Html position={[0, 2.45, 0]} center distanceFactor={12}>
-          <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-            fontFamily: '-apple-system, sans-serif',
-          }}>
-          {nearby && (
-            <div style={{
-              background: 'rgba(243,156,18,0.92)', color: '#111',
-              padding: '2px 10px', borderRadius: 10, fontSize: 10, fontWeight: 700,
-              boxShadow: '0 2px 8px rgba(243,156,18,0.5)', marginBottom: 2,
-            }}>Press E to chat</div>
-          )}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            background: nearby ? 'rgba(243,156,18,0.9)' : 'rgba(8,8,20,0.78)',
-            backdropFilter: 'blur(10px)',
-            color: nearby ? '#111' : '#fff', padding: '3px 8px 3px 3px', borderRadius: 22, fontSize: 12,
-            fontWeight: 600,
-            whiteSpace: 'nowrap', border: nearby ? '1px solid rgba(243,156,18,0.6)' : '1px solid rgba(76,175,80,0.35)',
-            boxShadow: nearby ? '0 2px 12px rgba(243,156,18,0.5)' : '0 2px 10px rgba(0,0,0,0.45)',
-          }}>
-            {/* Mini avatar / photo */}
-            <div style={{
-              width: 22, height: 22, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
-              background: `radial-gradient(circle at 35% 30%, ${headColor}, ${bodyColor})`,
-              border: '1.5px solid rgba(76,175,80,0.6)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11,
-            }}>
-              {photoUrl
-                ? <img src={photoUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                : null
-              }
-            </div>
-            <span>{name ?? 'Player'}</span>
-            {nationality && (
-              <span style={{ fontSize: 14 }}>
-                {nationality.toUpperCase().split('').map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')}
-              </span>
-            )}
-          </div>
-          </div>
-        </Html>
-      )}
+      <Html position={[0, 2.4, 0]} center distanceFactor={12}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          background: 'rgba(10,10,20,0.72)', backdropFilter: 'blur(8px)',
+          color: '#fff', padding: '3px 10px', borderRadius: 20, fontSize: 12,
+          fontFamily: '-apple-system, sans-serif', fontWeight: 600,
+          whiteSpace: 'nowrap', border: '1px solid rgba(76,175,80,0.4)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+        }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4caf50', display: 'inline-block', flexShrink: 0, boxShadow: '0 0 5px #4caf50' }} />
+          {name ?? 'Player'}
+        </div>
+      </Html>
     </group>
   )
 }
 
 // ─── NPC ─────────────────────────────────────────────────────────────────────
-function NPCCharacter({ npc, nearby, playerPosRef }: {
-  npc: NpcDef; nearby: boolean
-  playerPosRef: React.RefObject<{ x: number; z: number }>
-}) {
+function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
   const groupRef = useRef<THREE.Group>(null)
   const pos = useRef({ x: npc.position[0], z: npc.position[2] })
   const target = useRef({ x: npc.position[0], z: npc.position[2] })
@@ -581,16 +335,6 @@ function NPCCharacter({ npc, nearby, playerPosRef }: {
       while (rotDiff > Math.PI) rotDiff -= Math.PI * 2
       while (rotDiff < -Math.PI) rotDiff += Math.PI * 2
       groupRef.current.rotation.y += rotDiff * Math.min(1, 8 * delta)
-    } else {
-      // When idle: face player if nearby, else drift back to default
-      const pp = playerPosRef.current
-      const faceTarget = nearby && pp
-        ? Math.atan2(pp.x - pos.current.x, pp.z - pos.current.z)
-        : Math.PI
-      let rotDiff = faceTarget - groupRef.current.rotation.y
-      while (rotDiff > Math.PI) rotDiff -= Math.PI * 2
-      while (rotDiff < -Math.PI) rotDiff += Math.PI * 2
-      groupRef.current.rotation.y += rotDiff * Math.min(1, 3 * delta)
     }
     groupRef.current.position.y = Math.sin(Date.now() * 0.0015 + npc.position[0]) * 0.04
   })
@@ -702,9 +446,6 @@ export default function App() {
   const positionRef    = useRef({ x: 0, z: 0 })
   const mobileInputRef = useRef({ x: 0, z: 0 })
   const velMagRef      = useRef(0)
-  const hasInputRef    = useRef(false)
-  const camModeRef     = useRef<CamMode>(camMode)
-  camModeRef.current   = camMode
 
   // Profile
   const [myProfile, setMyProfile] = useState<PlayerProfile | null>(() => {
@@ -715,24 +456,8 @@ export default function App() {
   const [nearbyPlayerId, setNearbyPlayerId] = useState<string | null>(null)
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set())
   const [matches, setMatches] = useState<Set<string>>(new Set())
-  const [likedNpcIds, setLikedNpcIds] = useState<Set<string>>(new Set())
-  const [showMatches, setShowMatches] = useState(false)
-  const [matchNotify, setMatchNotify] = useState<{
-    name: string; faceEmoji?: string; bodyColor: string; headColor: string
-  } | null>(null)
-  const [activeDMId,  setActiveDMId]  = useState<string | null>(null)
-  const [dmMessages,  setDmMessages]  = useState<Record<string, DMMessage[]>>({})
-  const [unreadDMs,   setUnreadDMs]   = useState<Set<string>>(new Set())
-  const remoteProfilesRef = useRef(remoteProfiles)
-  remoteProfilesRef.current = remoteProfiles
   const [showShop, setShowShop] = useState(false)
-  const [showPeoplePanel, setShowPeoplePanel] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
-
-  // Session tracking for Rick's end-of-session English report
-  const sessionStartRef   = useRef(Date.now())
-  const npcMessagesRef    = useRef<string[]>([])   // all NPC assistant replies this session
-  const [showSessionReport, setShowSessionReport] = useState(false)
 
   const myOutfit = getOutfit(myProfile?.outfitId ?? 'beach')
 
@@ -835,45 +560,8 @@ export default function App() {
     }
     const onNewMatch = ({ withId }: { withId: string }) => {
       setMatches(prev => new Set(prev).add(withId))
-      const p = remoteProfilesRef.current[withId]
-      if (p) {
-        const outfit = getOutfit(p.outfitId)
-        setMatchNotify({ name: p.name, faceEmoji: p.faceEmoji, bodyColor: outfit.bodyColor, headColor: outfit.headColor })
-      } else {
-        setNotification('💫 É um Match!')
-        setTimeout(() => setNotification(null), 5000)
-      }
-    }
-
-    const onReceiveDM = ({ fromId, text, timestamp }: { fromId: string; text: string; timestamp: number }) => {
-      setDmMessages(prev => ({
-        ...prev,
-        [fromId]: [...(prev[fromId] ?? []), { fromId, text, timestamp }],
-      }))
-      setActiveDMId(cur => {
-        if (cur !== fromId) {
-          setUnreadDMs(u => new Set([...u, fromId]))
-          setNotification(`💬 ${remoteProfilesRef.current[fromId]?.name ?? 'Alguém'} enviou uma mensagem!`)
-          setTimeout(() => setNotification(null), 4000)
-        }
-        return cur
-      })
-    }
-    const onDmHistory = ({ withId, messages }: { withId: string; messages: DMMessage[] }) => {
-      setDmMessages(prev => ({ ...prev, [withId]: messages }))
-    }
-    const onReceiveFlirt = ({ fromId, emoji, name }: { fromId: string; emoji: string; name: string }) => {
-      setNotification(`${emoji} ${name} mandou um flerte!`)
-      setTimeout(() => setNotification(null), 4000)
-      // Also deliver flirt as a DM message so it appears in the conversation
-      setDmMessages(prev => ({
-        ...prev,
-        [fromId]: [...(prev[fromId] ?? []), { fromId, text: emoji, timestamp: Date.now() }],
-      }))
-      setActiveDMId(cur => {
-        if (cur !== fromId) setUnreadDMs(u => new Set([...u, fromId]))
-        return cur
-      })
+      setNotification('💞 É um Match!')
+      setTimeout(() => setNotification(null), 5000)
     }
 
     socket.on('connect', onConnect)
@@ -885,9 +573,6 @@ export default function App() {
     socket.on('existingProfiles', onExistingProfiles)
     socket.on('receiveLike', onReceiveLike)
     socket.on('newMatch', onNewMatch)
-    socket.on('receiveDM', onReceiveDM)
-    socket.on('dmHistory', onDmHistory)
-    socket.on('receiveFlirt', onReceiveFlirt)
     return () => {
       socket.off('connect', onConnect)
       socket.off('currentPlayers', onCurrentPlayers)
@@ -897,10 +582,7 @@ export default function App() {
       socket.off('playerProfile', onPlayerProfile)
       socket.off('existingProfiles', onExistingProfiles)
       socket.off('receiveLike', onReceiveLike)
-      socket.off('receiveDM', onReceiveDM)
-      socket.off('dmHistory', onDmHistory)
       socket.off('newMatch', onNewMatch)
-      socket.off('receiveFlirt', onReceiveFlirt)
     }
   }, [])
 
@@ -924,7 +606,7 @@ export default function App() {
   useEffect(() => {
     if (camMode !== 'pov') return
     const onMove = (e: MouseEvent) => {
-      if (isLockedRef.current) facingRef.current += e.movementX * 0.0012
+      if (isLockedRef.current) facingRef.current += e.movementX * 0.003
     }
     document.addEventListener('mousemove', onMove)
     return () => document.removeEventListener('mousemove', onMove)
@@ -989,11 +671,6 @@ export default function App() {
             setActiveChatNpc(nearbyNpc)
             chatOpenRef.current = true
             audio.playOpen()
-          } else if (nearbyPlayerId) {
-            setActiveDMId(nearbyPlayerId)
-            chatOpenRef.current = true
-            audio.playOpen()
-            socket.emit('getDMHistory', { withId: nearbyPlayerId })
           } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
             handleServeCustomer(nearbyCustomerId)
           }
@@ -1095,7 +772,7 @@ export default function App() {
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!dragRef.current) return
     if (dragRef.current.type === 'orbit') {
-      camYawRef.current = dragRef.current.yaw - (e.clientX - dragRef.current.x) * 0.003
+      camYawRef.current = dragRef.current.yaw - (e.clientX - dragRef.current.x) * 0.007
     } else if (!isLockedRef.current) {
       facingRef.current = dragRef.current.yaw + (e.clientX - dragRef.current.x) * 0.008
     }
@@ -1107,11 +784,6 @@ export default function App() {
       setActiveChatNpc(nearbyNpc)
       chatOpenRef.current = true
       audio.playOpen()
-    } else if (nearbyPlayerId && !chatOpenRef.current) {
-      setActiveDMId(nearbyPlayerId)
-      chatOpenRef.current = true
-      audio.playOpen()
-      socket.emit('getDMHistory', { withId: nearbyPlayerId })
     } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
       handleServeCustomer(nearbyCustomerId)
     }
@@ -1204,37 +876,6 @@ export default function App() {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
           }}>{myProfile.faceEmoji}</button>
-          {/* People panel button */}
-          <button onClick={() => setShowPeoplePanel(true)} title="Quem está no club" style={{
-            width: 38, height: 38, borderRadius: '50%', position: 'relative',
-            border: '2px solid rgba(255,255,255,0.15)',
-            background: 'rgba(0,0,0,0.4)',
-            cursor: 'pointer', fontSize: 18,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-            backdropFilter: 'blur(8px)',
-          }}>👥</button>
-          {/* Matches button */}
-          <button onClick={() => setShowMatches(true)} title="Ver matches" style={{
-            width: 38, height: 38, borderRadius: '50%', position: 'relative',
-            border: matches.size > 0 ? '2px solid rgba(231,76,60,0.6)' : '2px solid rgba(255,255,255,0.15)',
-            background: matches.size > 0 ? 'rgba(231,76,60,0.18)' : 'rgba(0,0,0,0.4)',
-            cursor: 'pointer', fontSize: 18,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
-            backdropFilter: 'blur(8px)',
-          }}>
-            ❤️
-            {matches.size > 0 && (
-              <div style={{
-                position: 'absolute', top: -4, right: -4,
-                width: 17, height: 17, borderRadius: '50%',
-                background: '#e74c3c', fontSize: 9, fontWeight: 800, color: '#fff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: '1.5px solid rgba(0,0,0,0.3)',
-              }}>{matches.size}</div>
-            )}
-          </button>
           {/* Pill bar: Shop + Online + Collapse */}
           <div style={{
             display: 'flex', gap: 0, alignItems: 'center',
@@ -1257,14 +898,6 @@ export default function App() {
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4caf50', display: 'inline-block' }} />
               {Object.keys(players).length}
             </div>
-            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
-            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
-            <button onClick={() => setShowSessionReport(true)} title="Finalizar sessão e ver relatório do Rick" style={{
-              padding: '5px 13px', borderRadius: 22, border: 'none',
-              background: 'transparent', color: 'rgba(255,200,100,0.8)',
-              fontFamily: '-apple-system, sans-serif', fontSize: 12,
-              fontWeight: 600, cursor: 'pointer', letterSpacing: 0.3,
-            }}>Finish</button>
             <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
             <button onClick={() => toggleHud('topRight')} style={{
               width: 26, height: 26, borderRadius: '50%', border: 'none',
@@ -1318,79 +951,6 @@ export default function App() {
         <Shop myProfile={myProfile!} onChangeOutfit={handleChangeOutfit} onClose={() => setShowShop(false)} />
       )}
 
-      {/* Matches panel */}
-      {showMatches && !activeDMId && (() => {
-        const cardProfiles: Record<string, CardProfile> = {}
-        Object.entries(remoteProfiles).forEach(([id, rp]) => {
-          const outfit = getOutfit(rp.outfitId)
-          cardProfiles[id] = { name: rp.name, faceEmoji: rp.faceEmoji, bodyColor: outfit.bodyColor, headColor: outfit.headColor, bio: rp.bio, interests: rp.interests, isNpc: false }
-        })
-        return (
-          <MatchesPanel
-            matches={matches}
-            profiles={cardProfiles}
-            myInterests={myProfile?.interests ?? []}
-            unreadDMs={unreadDMs}
-            onOpenDM={id => {
-              setActiveDMId(id)
-              setUnreadDMs(prev => { const s = new Set(prev); s.delete(id); return s })
-              socket.emit('getDMHistory', { withId: id })
-            }}
-            onClose={() => setShowMatches(false)}
-          />
-        )
-      })()}
-
-      {/* DM panel */}
-      {activeDMId && (() => {
-        const rp = remoteProfiles[activeDMId]
-        const outfit = rp ? getOutfit(rp.outfitId) : getOutfit('beach')
-        const partnerCard: CardProfile = {
-          name: rp?.name ?? 'Player', faceEmoji: rp?.faceEmoji ?? '🙂',
-          bodyColor: outfit.bodyColor, headColor: outfit.headColor,
-          bio: rp?.bio ?? '', interests: rp?.interests ?? [], isNpc: false,
-          photoUrl: rp?.photoUrl,
-        }
-        const myOutfitColors = getOutfit(myProfile!.outfitId)
-        return (
-          <DMPanel
-            partnerProfile={partnerCard}
-            partnerPhotos={rp?.photos}
-            isMatch={matches.has(activeDMId)}
-            myId={myId.current}
-            myEmoji={myProfile!.faceEmoji}
-            myBodyColor={myOutfitColors.bodyColor}
-            myHeadColor={myOutfitColors.headColor}
-            messages={dmMessages[activeDMId] ?? []}
-            onSend={text => {
-              const msg: DMMessage = { fromId: myId.current, text, timestamp: Date.now() }
-              setDmMessages(prev => ({ ...prev, [activeDMId]: [...(prev[activeDMId] ?? []), msg] }))
-              socket.emit('sendDM', { toId: activeDMId, text })
-            }}
-            onBack={() => { setActiveDMId(null); chatOpenRef.current = false }}
-            onClose={() => { setActiveDMId(null); setShowMatches(false); chatOpenRef.current = false }}
-          />
-        )
-      })()}
-
-      {/* Match notification overlay */}
-      {matchNotify && myProfile && (() => {
-        const myOutfitColors = getOutfit(myProfile.outfitId)
-        return (
-          <MatchNotification
-            myName={myProfile.name}
-            myEmoji={myProfile.faceEmoji}
-            myBodyColor={myOutfitColors.bodyColor}
-            myHeadColor={myOutfitColors.headColor}
-            matchName={matchNotify.name}
-            matchEmoji={matchNotify.faceEmoji}
-            matchBodyColor={matchNotify.bodyColor}
-            matchHeadColor={matchNotify.headColor}
-            onContinue={() => setMatchNotify(null)}
-          />
-        )
-      })()}
-
       {/* Notification toast */}
       {notification && (
         <div style={{
@@ -1425,44 +985,18 @@ export default function App() {
       )}
 
       {/* Chat panel */}
-      {activeChatNpc && (
-        <ChatPanel
-          npc={activeChatNpc}
-          onClose={closeChat}
-          onNpcMessage={msg => { npcMessagesRef.current.push(msg) }}
-        />
-      )}
+      {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
 
-      {/* Session report — Rick's English learning summary */}
-      {showSessionReport && (
-        <SessionReport
-          playerName={myProfile!.name}
-          durationMinutes={(Date.now() - sessionStartRef.current) / 60000}
-          npcMessages={npcMessagesRef.current}
-          onClose={() => setShowSessionReport(false)}
-        />
-      )}
-
-      {/* People panel — opt-in directory */}
-      {showPeoplePanel && (
-        <PeoplePanel
-          players={players}
-          profiles={remoteProfiles}
-          myId={myId.current}
-          matches={matches}
-          likedIds={likedIds}
-          likedNpcIds={likedNpcIds}
+      {/* Nearby player profile card */}
+      {nearbyPlayerId && remoteProfiles[nearbyPlayerId] && (
+        <ProfileCard
+          profile={remoteProfiles[nearbyPlayerId]}
           myInterests={myProfile?.interests ?? []}
-          onLikePlayer={id => handleLike(id)}
-          onLikeNpc={id => setLikedNpcIds(prev => new Set(prev).add(id))}
-          onChatNpc={npc => { setActiveChatNpc(npc); chatOpenRef.current = true; audio.playOpen(); setShowPeoplePanel(false) }}
-          onOpenDM={id => {
-            setActiveDMId(id)
-            setUnreadDMs(prev => { const s = new Set(prev); s.delete(id); return s })
-            socket.emit('getDMHistory', { withId: id })
-            setShowPeoplePanel(false)
-          }}
-          onClose={() => setShowPeoplePanel(false)}
+          isLiked={likedIds.has(nearbyPlayerId)}
+          isMatch={matches.has(nearbyPlayerId)}
+          onLike={() => handleLike(nearbyPlayerId)}
+          onSuperLike={() => handleLike(nearbyPlayerId, true)}
+          onClose={() => setNearbyPlayerId(null)}
         />
       )}
 
@@ -1497,38 +1031,37 @@ export default function App() {
         <MobileControls
           onMove={handleMobileMove}
           onTalk={handleMobileTalk}
-          nearNpc={!!nearbyNpc || !!nearbyPlayerId || (!!nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy')}
+          nearNpc={!!nearbyNpc || (!!nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy')}
         />
       )}
 
-      <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }} scene={{ background: new THREE.Color('#5ec8f0') }}>
-        <fog attach="fog" args={['#a8dff5', 55, 115]} />
-        {/* Fixed bright sunny day */}
-        <ambientLight intensity={1.8} color="#fff8ee" />
-        <directionalLight position={[18, 38, 14]} intensity={4.5} color="#fff5d0" castShadow
-          shadow-mapSize={[2048, 2048]} shadow-camera-far={120}
-          shadow-camera-left={-40} shadow-camera-right={40}
-          shadow-camera-top={40} shadow-camera-bottom={-40} />
-        {/* Sky fill — soft blue bounce */}
-        <directionalLight position={[-12, 20, -10]} intensity={1.2} color="#c8e8ff" />
-        {/* Pool area */}
-        <pointLight position={[0, 4, -10]} intensity={8} distance={22} color="#40e8d8" decay={2} />
-        {/* Bar */}
-        <pointLight position={[16, 4, -4]} intensity={6} distance={16} color="#ffb055" decay={2} />
-        {/* Reception */}
-        <pointLight position={[0, 5, 17]} intensity={5} distance={18} color="#fff0c0" decay={2} />
+      <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }}>
+        <color attach="background" args={['#f4a460']} />
+        <fog attach="fog" args={['#f4a460', 45, 95]} />
+        <ambientLight intensity={0.55} color="#ffe8c0" />
+        <directionalLight
+          position={[12, 22, 8]} intensity={2.0} color="#ffcc88" castShadow
+          shadow-mapSize={[2048, 2048]}
+          shadow-camera-far={90} shadow-camera-left={-35}
+          shadow-camera-right={35} shadow-camera-top={35} shadow-camera-bottom={-35}
+        />
+        <directionalLight position={[-10, 8, -5]} intensity={0.25} color="#a0c8ff" />
+        {/* Pool area — cool aqua fill */}
+        <pointLight position={[0, 4, -10]} intensity={6} distance={20} color="#40e0d0" decay={2} />
+        {/* Bar — warm amber */}
+        <pointLight position={[16, 4, -4]} intensity={5} distance={14} color="#ff9944" decay={2} />
+        {/* Reception arch — soft white */}
+        <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
         <DJLights />
 
-        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} hasInputRef={hasInputRef} />
-        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} hasInputRef={hasInputRef} camModeRef={camModeRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
-        <Suspense fallback={null}>
-          <BeachClub />
-        </Suspense>
+        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} />
+        <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
+        <Suspense fallback={null}><BeachClub /></Suspense>
         <ReceptionArea />
         <ValentinaBuggy />
 
         {NPCS.map(npc => (
-          <NPCCharacter key={npc.id} npc={npc} nearby={nearbyNpc?.id === npc.id} playerPosRef={positionRef} />
+          <NPCCharacter key={npc.id} npc={npc} nearby={nearbyNpc?.id === npc.id} />
         ))}
 
         <AICustomers
@@ -1541,7 +1074,7 @@ export default function App() {
           if (id === myId.current) return null
           const rProfile = remoteProfiles[id]
           const rOutfit = getOutfit(rProfile?.outfitId ?? 'ocean')
-          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} hairColor={rOutfit.hairColor} pantsColor={rOutfit.pantsColor} name={rProfile?.name} photoUrl={rProfile?.photoUrl} nationality={rProfile?.nationality} showNameplate={rProfile?.showNameplate} nearby={nearbyPlayerId === id} />
+          return <RemotePlayer key={id} targetPosition={player} bodyColor={rOutfit.bodyColor} headColor={rOutfit.headColor} hairColor={rOutfit.hairColor} pantsColor={rOutfit.pantsColor} name={rProfile?.name} />
         })}
       </Canvas>
     </div>

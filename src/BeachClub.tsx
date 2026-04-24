@@ -67,24 +67,12 @@ function Ocean() {
 
 function Pool() {
   const waterRef = useRef<THREE.MeshStandardMaterial>(null)
-  const c1 = useRef<THREE.PointLight>(null)
-  const c2 = useRef<THREE.PointLight>(null)
-  const c3 = useRef<THREE.PointLight>(null)
 
   useFrame(({ clock }) => {
+    if (!waterRef.current) return
     const t = clock.elapsedTime
-    if (waterRef.current) {
-      waterRef.current.color.setHSL(0.535 + Math.sin(t * 0.32) * 0.02, 0.82, 0.50 + Math.sin(t * 0.58) * 0.04)
-      waterRef.current.opacity = 0.86 + Math.sin(t * 0.85) * 0.05
-    }
-    // Caustic light animation — 3 slowly orbiting lights inside pool
-    ;[c1, c2, c3].forEach((r, i) => {
-      if (!r.current) return
-      const a = t * 0.55 + i * (Math.PI * 2 / 3)
-      r.current.position.x = Math.cos(a) * 2.8
-      r.current.position.z = -10 + Math.sin(a) * 1.9
-      r.current.intensity = 2.2 + Math.sin(t * 2.4 + i * 1.3) * 0.9
-    })
+    waterRef.current.color.setHSL(0.535 + Math.sin(t * 0.32) * 0.02, 0.82, 0.50 + Math.sin(t * 0.58) * 0.04)
+    waterRef.current.opacity = 0.86 + Math.sin(t * 0.85) * 0.05
   })
 
   const rim = '#c4b49a'
@@ -130,11 +118,8 @@ function Pool() {
         <meshStandardMaterial color={rim} roughness={0.5} />
       </mesh>
 
-      {/* Pool underwater light glow + 3 caustic orbits */}
-      <pointLight position={[0, 0.15, -10]} intensity={7} distance={14} color="#00ddee" decay={2} />
-      <pointLight ref={c1} position={[0, 0.3, -10]} intensity={2} distance={9} color="#40e8ff" decay={2} />
-      <pointLight ref={c2} position={[2, 0.3, -11]} intensity={2} distance={9} color="#30d8f0" decay={2} />
-      <pointLight ref={c3} position={[-2, 0.3, -9]} intensity={2} distance={9} color="#55eeff" decay={2} />
+      {/* Pool underwater light glow */}
+      <pointLight position={[0, 0.15, -10]} intensity={8} distance={14} color="#00ddee" decay={2} />
     </group>
   )
 }
@@ -207,43 +192,72 @@ function PalmTree({ position, lean = 0, seed = 0 }: {
   const treeRef = useRef<THREE.Group>(null)
   useFrame(({ clock }) => {
     if (!treeRef.current) return
-    const t = clock.elapsedTime * 0.28 + seed * 1.9
-    treeRef.current.rotation.z = Math.sin(t) * 0.022
-    treeRef.current.rotation.x = Math.sin(t * 0.68 + 1.3) * 0.014
+    const t = clock.elapsedTime * 0.26 + seed * 1.9
+    treeRef.current.rotation.z = Math.sin(t) * 0.020
+    treeRef.current.rotation.x = Math.sin(t * 0.65 + 1.3) * 0.012
   })
   return (
     <group ref={treeRef} position={position}>
-      {/* Trunk — only this casts shadow */}
-      <mesh
-        position={[lean * 0.08, 2.8, lean * 0.04]}
-        rotation={[lean * 0.04, 0, lean * 0.052]}
-        castShadow
-      >
-        <cylinderGeometry args={[0.14, 0.27, 5.6, 8]} />
-        <meshStandardMaterial color="#8a6314" roughness={0.88} />
+      {/* Lower trunk — wide base tapering */}
+      <mesh position={[lean * 0.03, 1.85, lean * 0.015]} rotation={[lean * 0.03, 0, lean * 0.048 * 0.55]} castShadow>
+        <cylinderGeometry args={[0.17, 0.30, 3.7, 8]} />
+        <meshStandardMaterial color="#7a5c1e" roughness={0.92} />
       </mesh>
-      {/* Crown blob — gives the tree visual mass */}
-      <mesh position={[lean * 0.08, 5.6, lean * 0.04]}>
-        <sphereGeometry args={[1.1, 7, 5]} />
-        <meshStandardMaterial color="#2a8030" roughness={0.85} />
+      {/* Upper trunk — thinner, lean increases */}
+      <mesh position={[lean * 0.078, 4.55, lean * 0.039]} rotation={[lean * 0.028, 0, lean * 0.048 * 0.90]} castShadow>
+        <cylinderGeometry args={[0.12, 0.17, 2.0, 8]} />
+        <meshStandardMaterial color="#8a6824" roughness={0.90} />
       </mesh>
-      {/* Fronds — plane geometry, NO castShadow, DoubleSide */}
-      {Array.from({ length: 7 }, (_, i) => {
-        const deg = (i / 7) * 360 + seed * 18
-        const rad = (deg * Math.PI) / 180
+      {/* Bark rings */}
+      {[0.7, 1.5, 2.3, 3.1, 3.9, 4.7].map((y, i) => (
+        <mesh key={i} position={[lean * 0.08 * (y / 5.6), y, lean * 0.04 * (y / 5.6)]}>
+          <torusGeometry args={[0.21 - i * 0.012, 0.025, 4, 8]} />
+          <meshStandardMaterial color="#6a4812" roughness={0.96} />
+        </mesh>
+      ))}
+      {/* Coconut cluster at crown base */}
+      {[0, 1, 2].map(i => (
+        <mesh key={i} position={[lean * 0.08 + Math.cos(i * 2.1 + seed) * 0.13, 5.38, lean * 0.04 + Math.sin(i * 2.1 + seed) * 0.13]}>
+          <sphereGeometry args={[0.095, 7, 6]} />
+          <meshStandardMaterial color="#5a3a10" roughness={0.8} />
+        </mesh>
+      ))}
+      {/* Fronds — 9 arching leaves drooping from crown */}
+      {Array.from({ length: 9 }, (_, i) => {
+        const angle = (i / 9) * Math.PI * 2 + seed * 0.42
+        const droop = -0.58 - (i % 3) * 0.13
+        const length = 1.9 + (i % 3) * 0.28
+        const green = i % 2 === 0 ? '#2a8f3a' : '#32a044'
         return (
-          <mesh
-            key={i}
-            position={[lean * 0.08 + Math.cos(rad) * 1.0, 5.55, lean * 0.04 + Math.sin(rad) * 1.0]}
-            rotation={[-0.52 + (i % 2) * 0.12, rad, 0]}
-          >
-            <planeGeometry args={[0.6, 3.0]} />
-            <meshStandardMaterial
-              color={i % 2 === 0 ? '#2a8030' : '#349038'}
-              roughness={0.78}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
+          <group key={i} position={[lean * 0.08, 5.5, lean * 0.04]} rotation={[0, angle, droop]}>
+            {/* Rachis (frond stem + body) */}
+            <mesh position={[0, length * 0.52, 0]} scale={[0.36, 1, 0.20]}>
+              <capsuleGeometry args={[0.11, length, 4, 8]} />
+              <meshStandardMaterial color={green} roughness={0.70} />
+            </mesh>
+            {/* Leaflets — left */}
+            {[0.35, 0.65, 0.90, 1.15].map((t, li) => (
+              <mesh key={li}
+                position={[-0.18, length * t * 0.95, 0]}
+                rotation={[0, 0, -0.55 - t * 0.2]}
+                scale={[1, 0.55 - t * 0.08, 0.16]}
+              >
+                <capsuleGeometry args={[0.06, 0.46, 3, 6]} />
+                <meshStandardMaterial color={green} roughness={0.72} />
+              </mesh>
+            ))}
+            {/* Leaflets — right */}
+            {[0.35, 0.65, 0.90, 1.15].map((t, li) => (
+              <mesh key={li + 10}
+                position={[0.18, length * t * 0.95, 0]}
+                rotation={[0, 0, 0.55 + t * 0.2]}
+                scale={[1, 0.55 - t * 0.08, 0.16]}
+              >
+                <capsuleGeometry args={[0.06, 0.46, 3, 6]} />
+                <meshStandardMaterial color={i % 2 === 0 ? '#288038' : '#309840'} roughness={0.72} />
+              </mesh>
+            ))}
+          </group>
         )
       })}
     </group>
@@ -307,57 +321,7 @@ function Umbrella({ position, color }: { position: [number, number, number]; col
   )
 }
 
-function ShoreFoam() {
-  const COUNT   = 80
-  const ptsRef  = useRef<THREE.Points>(null)
-  const origPos = useRef((() => {
-    const a = new Float32Array(COUNT * 3)
-    for (let i = 0; i < COUNT; i++) {
-      a[i*3]   = (Math.random() - 0.5) * 82
-      a[i*3+1] = 0.06
-      a[i*3+2] = -46.5 - Math.random() * 2.5
-    }
-    return a
-  })())
-  const phases = useRef(Array.from({ length: COUNT }, () => Math.random() * Math.PI * 2))
-  useFrame(({ clock }) => {
-    if (!ptsRef.current) return
-    const t    = clock.elapsedTime
-    const attr = ptsRef.current.geometry.attributes.position as THREE.BufferAttribute
-    const o    = origPos.current
-    for (let i = 0; i < COUNT; i++) {
-      const wave = Math.sin(t * 0.85 + phases.current[i]) * 1.2
-      attr.setXYZ(i, o[i*3], o[i*3+1], o[i*3+2] + wave)
-    }
-    attr.needsUpdate = true
-    ;(ptsRef.current.material as THREE.PointsMaterial).opacity = 0.45 + Math.sin(t * 0.85) * 0.28
-  })
-  return (
-    <points ref={ptsRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[origPos.current, 3]} />
-      </bufferGeometry>
-      <pointsMaterial color="#ddf4ff" size={0.28} transparent opacity={0.5} sizeAttenuation depthWrite={false} />
-    </points>
-  )
-}
-
 function TikiTorch({ position }: { position: [number, number, number] }) {
-  const flameRef = useRef<THREE.Mesh>(null)
-  const lightRef = useRef<THREE.PointLight>(null)
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime
-    const f = 0.88 + Math.sin(t * 18.3) * 0.07 + Math.sin(t * 25.7) * 0.05
-    if (flameRef.current) {
-      flameRef.current.scale.setScalar(f)
-      flameRef.current.position.y = 2.88 + Math.sin(t * 12.1) * 0.03
-      ;(flameRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.85 + Math.sin(t * 14.4) * 0.15
-    }
-    if (lightRef.current) {
-      lightRef.current.intensity = 4.2 + Math.sin(t * 18.3) * 0.9 + Math.sin(t * 25.7) * 0.6
-      lightRef.current.color.setHSL(0.075 + Math.sin(t * 6.2) * 0.018, 1, 0.54)
-    }
-  })
   return (
     <group position={position}>
       <mesh position={[0, 1.35, 0]} castShadow>
@@ -368,168 +332,54 @@ function TikiTorch({ position }: { position: [number, number, number] }) {
         <cylinderGeometry args={[0.13, 0.09, 0.28, 8]} />
         <meshStandardMaterial color="#503510" roughness={0.85} />
       </mesh>
-      <mesh ref={flameRef} position={[0, 2.88, 0]}>
+      <mesh position={[0, 2.88, 0]}>
         <sphereGeometry args={[0.1, 8, 8]} />
         <meshStandardMaterial color="#ff7700" emissive="#ff4400" emissiveIntensity={1.0} />
       </mesh>
-      <pointLight ref={lightRef} position={[0, 2.9, 0]} intensity={4} distance={7} color="#ff8800" decay={2} />
+      <pointLight position={[0, 2.9, 0]} intensity={4} distance={7} color="#ff8800" decay={2} />
     </group>
-  )
-}
-
-function DancingFigure({ position, bodyColor, headColor, phase = 0 }: {
-  position: [number, number, number]; bodyColor: string; headColor: string; phase?: number
-}) {
-  const groupRef = useRef<THREE.Group>(null)
-  const lArmRef  = useRef<THREE.Group>(null)
-  const rArmRef  = useRef<THREE.Group>(null)
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime * 1.933 + phase  // 116 BPM
-    if (!groupRef.current) return
-    groupRef.current.position.y = Math.abs(Math.sin(t * Math.PI)) * 0.12
-    groupRef.current.rotation.y = Math.sin(t * Math.PI * 0.5) * 0.3
-    if (lArmRef.current) lArmRef.current.rotation.x = Math.sin(t * Math.PI + 0.9) * 0.85
-    if (rArmRef.current) rArmRef.current.rotation.x = Math.sin(t * Math.PI - 0.9) * 0.85
-  })
-  return (
-    <group ref={groupRef} position={position}>
-      <mesh position={[0, 0.62, 0]}>
-        <capsuleGeometry args={[0.14, 0.48, 4, 8]} />
-        <meshStandardMaterial color={bodyColor} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, 1.34, 0]}>
-        <sphereGeometry args={[0.18, 10, 10]} />
-        <meshStandardMaterial color={headColor} roughness={0.65} />
-      </mesh>
-      <group ref={lArmRef} position={[-0.22, 1.02, 0]}>
-        <mesh position={[0, -0.18, 0]}>
-          <capsuleGeometry args={[0.05, 0.32, 4, 6]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.7} />
-        </mesh>
-      </group>
-      <group ref={rArmRef} position={[0.22, 1.02, 0]}>
-        <mesh position={[0, -0.18, 0]}>
-          <capsuleGeometry args={[0.05, 0.32, 4, 6]} />
-          <meshStandardMaterial color={bodyColor} roughness={0.7} />
-        </mesh>
-      </group>
-    </group>
-  )
-}
-
-function DanceFloor() {
-  const matRefs = useRef<(THREE.MeshStandardMaterial | null)[]>([])
-  const TILES: [number, number][] = []
-  for (let col = -3; col <= 3; col += 2)
-    for (let row = 0; row < 4; row++)
-      TILES.push([col, -17.2 - row * 1.85])
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime
-    const beat = Math.pow(Math.max(0, Math.cos((t * 116 / 60) * Math.PI * 2)), 4)
-    matRefs.current.forEach((mat, i) => {
-      if (!mat) return
-      mat.emissive.setHSL((t * 0.05 + i * 0.07) % 1, 1, 0.5)
-      mat.emissiveIntensity = 0.12 + beat * 1.4
-    })
-  })
-  return (
-    <>
-      <mesh position={[0, 0.005, -20]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[9, 8.5]} />
-        <meshStandardMaterial color="#06061a" roughness={0.18} metalness={0.35} />
-      </mesh>
-      {TILES.map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.012, z]} rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[1.6, 1.6]} />
-          <meshStandardMaterial
-            ref={el => { matRefs.current[i] = el }}
-            color="#0a0a22" emissive="#0055ff" emissiveIntensity={0.12}
-            roughness={0.1} metalness={0.55}
-          />
-        </mesh>
-      ))}
-    </>
-  )
-}
-
-function DanceSparkles() {
-  const COUNT   = 70
-  const ptsRef  = useRef<THREE.Points>(null)
-  const origPos = useRef((() => {
-    const a = new Float32Array(COUNT * 3)
-    for (let i = 0; i < COUNT; i++) {
-      a[i*3]   = (Math.random() - 0.5) * 8.5
-      a[i*3+1] = Math.random() * 4.2
-      a[i*3+2] = -17 - Math.random() * 6.5
-    }
-    return a
-  })())
-  const phases = useRef(Array.from({ length: COUNT }, () => Math.random() * Math.PI * 2))
-  const spds   = useRef(Array.from({ length: COUNT }, () => 0.5 + Math.random() * 0.9))
-  useFrame(({ clock }) => {
-    if (!ptsRef.current) return
-    const t   = clock.elapsedTime
-    const attr = ptsRef.current.geometry.attributes.position as THREE.BufferAttribute
-    const o   = origPos.current
-    for (let i = 0; i < COUNT; i++) {
-      attr.setXYZ(
-        i,
-        o[i*3] + Math.sin(t * 0.7 + phases.current[i]) * 0.25,
-        (o[i*3+1] + t * spds.current[i]) % 4.5,
-        o[i*3+2],
-      )
-    }
-    attr.needsUpdate = true
-  })
-  return (
-    <points ref={ptsRef}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[origPos.current, 3]} />
-      </bufferGeometry>
-      <pointsMaterial color="#ffdd44" size={0.07} transparent opacity={0.7} sizeAttenuation depthWrite={false} />
-    </points>
   )
 }
 
 function DJBooth() {
   return (
     <group position={[0, 0, -20]}>
-      {/* Raised stage */}
+      {/* Raised stage — dark polished wood */}
       <mesh position={[0, 0.13, 0]} castShadow receiveShadow>
         <boxGeometry args={[9.5, 0.26, 3.5]} />
-        <meshStandardMaterial color="#16162a" roughness={0.5} />
+        <meshStandardMaterial color="#2a1a0e" roughness={0.45} metalness={0.05} />
       </mesh>
-      {/* Stage LED edge front */}
+      {/* Stage LED edge front — warm amber */}
       <mesh position={[0, 0.27, 1.75]}>
         <boxGeometry args={[9.5, 0.05, 0.06]} />
-        <meshStandardMaterial color="#8888ff" emissive="#5555ff" emissiveIntensity={1.4} />
+        <meshStandardMaterial color="#ffcc44" emissive="#ff9900" emissiveIntensity={1.2} />
       </mesh>
       {/* Stage LED sides */}
       <mesh position={[-4.75, 0.27, 0]}>
         <boxGeometry args={[0.06, 0.05, 3.5]} />
-        <meshStandardMaterial color="#8888ff" emissive="#5555ff" emissiveIntensity={1.4} />
+        <meshStandardMaterial color="#ffcc44" emissive="#ff9900" emissiveIntensity={1.2} />
       </mesh>
       <mesh position={[4.75, 0.27, 0]}>
         <boxGeometry args={[0.06, 0.05, 3.5]} />
-        <meshStandardMaterial color="#8888ff" emissive="#5555ff" emissiveIntensity={1.4} />
+        <meshStandardMaterial color="#ffcc44" emissive="#ff9900" emissiveIntensity={1.2} />
       </mesh>
-      {/* Console */}
+      {/* Console — dark cedar wood */}
       <mesh position={[0, 0.72, -0.4]} castShadow>
         <boxGeometry args={[7.2, 1.18, 2.4]} />
-        <meshStandardMaterial color="#0e0e20" roughness={0.4} />
+        <meshStandardMaterial color="#1e1410" roughness={0.5} metalness={0.04} />
       </mesh>
       <mesh position={[0, 1.34, -0.72]} castShadow>
         <boxGeometry args={[6.4, 0.28, 1.5]} />
-        <meshStandardMaterial color="#080818" roughness={0.3} />
+        <meshStandardMaterial color="#150e08" roughness={0.35} metalness={0.08} />
       </mesh>
-      {/* Screens */}
+      {/* Screens — warm teal/coral beach vibes */}
       {([-2.4, 0, 2.4] as number[]).map((x, i) => (
         <mesh key={i} position={[x, 1.86, -1.1]}>
           <boxGeometry args={[1.6, 0.82, 0.06]} />
           <meshStandardMaterial
-            color="#050520"
-            emissive={(['#440099','#006644','#990022'] as string[])[i]}
-            emissiveIntensity={0.8}
+            color="#0a1218"
+            emissive={(['#007788','#cc5500','#006644'] as string[])[i]}
+            emissiveIntensity={0.85}
           />
         </mesh>
       ))}
@@ -538,18 +388,18 @@ function DJBooth() {
         <group key={i} position={[x, 0, -0.5]}>
           <mesh position={[0, 1.08, 0]} castShadow>
             <boxGeometry args={[0.95, 2.3, 0.88]} />
-            <meshStandardMaterial color="#0a0a0a" roughness={0.5} />
+            <meshStandardMaterial color="#181210" roughness={0.6} />
           </mesh>
           <mesh position={[0, 1.08, 0.44]}>
             <boxGeometry args={[0.72, 1.9, 0.03]} />
-            <meshStandardMaterial color="#1a1a1a" roughness={0.85} />
+            <meshStandardMaterial color="#282018" roughness={0.85} />
           </mesh>
         </group>
       ))}
-      {/* Floor glow */}
+      {/* Floor — dark parquet */}
       <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[8.5, 3]} />
-        <meshStandardMaterial color="#090920" roughness={0.8} />
+        <meshStandardMaterial color="#16100a" roughness={0.65} />
       </mesh>
     </group>
   )
@@ -782,94 +632,280 @@ function BoundaryWalls() {
 function BackgroundCustomer({ position, color, rotation = 0 }: {
   position: [number, number, number]; color: string; rotation?: number
 }) {
+  const HAIR = ['#1a0c04','#2a1208','#8a5a2a','#c09060','#3a2010','#0a0808']
+  const SKIN = ['#c8a07a','#d4a88a','#b87858','#e8c4a0','#a06040','#f0d0b0']
+  const hi = Math.abs(Math.floor(position[0] * 7.3 + position[2] * 3.1)) % HAIR.length
+  const si = Math.abs(Math.floor(position[0] * 5.1 + position[2] * 11.7)) % SKIN.length
+  const hairColor = HAIR[hi]
+  const headColor = SKIN[si]
+  const pantsColor = '#1e2a3a'
+
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      <mesh position={[0, 0.56, 0]}>
-        <capsuleGeometry args={[0.15, 0.66, 4, 8]} />
-        <meshStandardMaterial color={color} roughness={0.7} />
+      {/* Legs */}
+      <mesh position={[-0.10, 0.52, 0]}>
+        <capsuleGeometry args={[0.075, 0.70, 4, 8]} />
+        <meshStandardMaterial color={pantsColor} roughness={0.55} />
       </mesh>
-      <mesh position={[0, 1.3, 0]}>
-        <sphereGeometry args={[0.19, 10, 10]} />
-        <meshStandardMaterial color="#c8a07a" roughness={0.65} />
+      <mesh position={[0.10, 0.52, 0]}>
+        <capsuleGeometry args={[0.075, 0.70, 4, 8]} />
+        <meshStandardMaterial color={pantsColor} roughness={0.55} />
+      </mesh>
+      {/* Torso */}
+      <mesh position={[0, 1.14, 0]}>
+        <capsuleGeometry args={[0.155, 0.36, 6, 12]} />
+        <meshStandardMaterial color={color} roughness={0.50} />
+      </mesh>
+      {/* Arms */}
+      <mesh position={[-0.235, 1.08, 0]} rotation={[0.1, 0, 0.28]}>
+        <capsuleGeometry args={[0.052, 0.50, 4, 8]} />
+        <meshStandardMaterial color={color} roughness={0.52} />
+      </mesh>
+      <mesh position={[0.235, 1.08, 0]} rotation={[0.1, 0, -0.28]}>
+        <capsuleGeometry args={[0.052, 0.50, 4, 8]} />
+        <meshStandardMaterial color={color} roughness={0.52} />
+      </mesh>
+      {/* Neck */}
+      <mesh position={[0, 1.43, 0]}>
+        <cylinderGeometry args={[0.058, 0.072, 0.10, 8]} />
+        <meshStandardMaterial color={headColor} roughness={0.42} />
+      </mesh>
+      {/* Head */}
+      <mesh position={[0, 1.585, 0]}>
+        <sphereGeometry args={[0.170, 16, 12]} />
+        <meshStandardMaterial color={headColor} roughness={0.38} />
+      </mesh>
+      {/* Hair */}
+      <mesh position={[0, 1.655, -0.015]} scale={[1.02, 0.68, 1.02]}>
+        <sphereGeometry args={[0.172, 14, 10]} />
+        <meshStandardMaterial color={hairColor} roughness={0.65} />
+      </mesh>
+      {/* Eyes (simple dots) */}
+      <mesh position={[-0.062, 1.598, 0.156]}>
+        <sphereGeometry args={[0.022, 6, 5]} />
+        <meshStandardMaterial color="#1a1a2a" roughness={0.2} />
+      </mesh>
+      <mesh position={[0.062, 1.598, 0.156]}>
+        <sphereGeometry args={[0.022, 6, 5]} />
+        <meshStandardMaterial color="#1a1a2a" roughness={0.2} />
       </mesh>
     </group>
   )
 }
 
-const BLOB_OFFSETS: [number, number, number, number][] = [
-  [0, 0, 0, 1], [2.3, 0.4, 0, 0.82], [-2.0, 0.3, 0, 0.75],
-  [1.1, 1.2, 0.5, 0.68], [-0.9, 0.9, -0.4, 0.62], [3.2, 0.0, 0.3, 0.58],
-]
-
-const CLOUD_DATA = [
-  { x0: -70, y: 32, z: -72,  speed: 0.9,  scale: 5.0 },
-  { x0:  30, y: 44, z: -96,  speed: 0.55, scale: 7.5 },
-  { x0: -10, y: 28, z: -62,  speed: 1.15, scale: 4.2 },
-  { x0:  65, y: 38, z: -84,  speed: 0.7,  scale: 6.0 },
-  { x0: -50, y: 52, z: -118, speed: 0.38, scale: 9.0 },
-  { x0:  15, y: 24, z: -55,  speed: 1.4,  scale: 3.8 },
-]
-
-function Clouds() {
-  const grpRefs  = useRef<(THREE.Group | null)[]>([])
-  const matRefs  = useRef<(THREE.MeshStandardMaterial | null)[][]>(CLOUD_DATA.map(() => []))
-
-  useFrame(({ clock }) => {
-    const t = (clock.elapsedTime / 300) % 1
-    let night = 0
-    if      (t >= 0.42 && t < 0.52) night = (t - 0.42) / 0.10
-    else if (t >= 0.52 && t < 0.78) night = 1.0
-    else if (t >= 0.78 && t < 0.90) night = 1 - (t - 0.78) / 0.12
-    const opacity = Math.max(0, 1 - night * 2.0) * 0.62
-
-    CLOUD_DATA.forEach(({ x0, speed }, i) => {
-      const grp = grpRefs.current[i]
-      if (grp) grp.position.x = ((x0 + clock.elapsedTime * speed + 220) % 440) - 220
-      matRefs.current[i].forEach(m => { if (m) m.opacity = opacity })
-    })
-  })
-
+function ClubBuilding() {
+  const wall  = '#f8f0e0'
+  const trim  = '#e8d8b8'
+  const glass = '#6ab8d4'
   return (
-    <>
-      {CLOUD_DATA.map(({ x0, y, z, scale }, ci) => (
-        <group key={ci} ref={el => { grpRefs.current[ci] = el }} position={[x0, y, z]}>
-          {BLOB_OFFSETS.map(([bx, by, bz, br], bi) => (
-            <mesh key={bi} position={[bx * scale, by * scale, bz * scale]}>
-              <sphereGeometry args={[br * scale, 7, 5]} />
-              <meshStandardMaterial
-                ref={el => { matRefs.current[ci][bi] = el }}
-                color="#ffffff" transparent opacity={0.62}
-                roughness={1} fog={false} depthWrite={false}
-              />
-            </mesh>
-          ))}
-        </group>
+    <group position={[0, 0, 28]}>
+      {/* Main facade — 3 floors */}
+      <mesh position={[0, 5.5, 0]} castShadow receiveShadow>
+        <boxGeometry args={[64, 11, 1.8]} />
+        <meshStandardMaterial color={wall} roughness={0.72} />
+      </mesh>
+      {/* Floor dividers */}
+      {[0, 3.5, 7.0, 10.5].map((y, i) => (
+        <mesh key={i} position={[0, y, -0.08]}>
+          <boxGeometry args={[64.4, 0.22, 2.0]} />
+          <meshStandardMaterial color={trim} roughness={0.55} />
+        </mesh>
       ))}
-    </>
+      {/* Ground-floor windows — large */}
+      {[-24, -16, -8, 0, 8, 16, 24].map((x, i) => (
+        <mesh key={i} position={[x, 1.8, -0.92]}>
+          <boxGeometry args={[5.5, 2.8, 0.12]} />
+          <meshStandardMaterial color={glass} metalness={0.22} roughness={0.06} transparent opacity={0.85} />
+        </mesh>
+      ))}
+      {/* 2nd floor windows */}
+      {[-22, -14, -6, 2, 10, 18, 26, -30].map((x, i) => (
+        <mesh key={i} position={[x, 5.5, -0.92]}>
+          <boxGeometry args={[4.2, 2.0, 0.12]} />
+          <meshStandardMaterial color={glass} metalness={0.22} roughness={0.06} transparent opacity={0.80} />
+        </mesh>
+      ))}
+      {/* 3rd floor — smaller windows */}
+      {[-26, -18, -10, -2, 6, 14, 22, 30].map((x, i) => (
+        <mesh key={i} position={[x, 8.8, -0.92]}>
+          <boxGeometry args={[3.5, 1.6, 0.10]} />
+          <meshStandardMaterial color={glass} metalness={0.25} roughness={0.05} transparent opacity={0.75} />
+        </mesh>
+      ))}
+      {/* Roof parapet */}
+      <mesh position={[0, 11.2, 0]}>
+        <boxGeometry args={[64.5, 0.55, 2.2]} />
+        <meshStandardMaterial color={trim} roughness={0.5} />
+      </mesh>
+      {/* CASA BLANCA sign */}
+      <mesh position={[0, 10.3, -0.95]}>
+        <boxGeometry args={[18, 1.4, 0.22]} />
+        <meshStandardMaterial color="#d4a017" metalness={0.55} roughness={0.3} emissive="#aa7a00" emissiveIntensity={0.4} />
+      </mesh>
+      {/* Sign lights */}
+      <pointLight position={[-8, 10.8, 0.5]} intensity={6} distance={12} color="#ffcc44" decay={2} />
+      <pointLight position={[ 8, 10.8, 0.5]} intensity={6} distance={12} color="#ffcc44" decay={2} />
+      {/* Entrance arch */}
+      <mesh position={[0, 3.5, -0.85]}>
+        <torusGeometry args={[3.2, 0.28, 8, 18, Math.PI]} />
+        <meshStandardMaterial color={trim} roughness={0.45} />
+      </mesh>
+      {/* Entrance pillars */}
+      <mesh position={[-3.2, 1.75, -0.85]} castShadow>
+        <cylinderGeometry args={[0.28, 0.32, 3.5, 12]} />
+        <meshStandardMaterial color={trim} roughness={0.45} />
+      </mesh>
+      <mesh position={[ 3.2, 1.75, -0.85]} castShadow>
+        <cylinderGeometry args={[0.28, 0.32, 3.5, 12]} />
+        <meshStandardMaterial color={trim} roughness={0.45} />
+      </mesh>
+    </group>
   )
 }
 
-// ── GLB Athlete NPC — static mesh + procedural idle ──────────────────────────
-function AthleteNPC({ position, rotation = 0, phase = 0 }: {
+function ParkedCar({ position, rotation = 0, bodyColor = '#e8e0d0' }: {
+  position: [number, number, number]; rotation?: number; bodyColor?: string
+}) {
+  const glass = '#3a7a9a'
+  const wheel = '#1a1a1a'
+  const rim   = '#c8c8c8'
+  return (
+    <group position={position} rotation={[0, rotation, 0]}>
+      {/* Body lower */}
+      <mesh position={[0, 0.42, 0]} castShadow>
+        <boxGeometry args={[1.80, 0.62, 4.20]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.28} metalness={0.35} />
+      </mesh>
+      {/* Cabin / roof */}
+      <mesh position={[0, 0.96, -0.15]} castShadow>
+        <boxGeometry args={[1.62, 0.58, 2.45]} />
+        <meshStandardMaterial color={bodyColor} roughness={0.25} metalness={0.38} />
+      </mesh>
+      {/* Windshield */}
+      <mesh position={[0, 0.96, 1.02]} rotation={[-0.24, 0, 0]}>
+        <boxGeometry args={[1.55, 0.52, 0.08]} />
+        <meshStandardMaterial color={glass} metalness={0.30} roughness={0.04} transparent opacity={0.78} />
+      </mesh>
+      {/* Rear window */}
+      <mesh position={[0, 0.96, -1.28]} rotation={[0.24, 0, 0]}>
+        <boxGeometry args={[1.55, 0.52, 0.08]} />
+        <meshStandardMaterial color={glass} metalness={0.30} roughness={0.04} transparent opacity={0.75} />
+      </mesh>
+      {/* Side windows L */}
+      <mesh position={[-0.82, 0.97, -0.15]}>
+        <boxGeometry args={[0.08, 0.44, 1.85]} />
+        <meshStandardMaterial color={glass} metalness={0.28} roughness={0.04} transparent opacity={0.72} />
+      </mesh>
+      {/* Side windows R */}
+      <mesh position={[ 0.82, 0.97, -0.15]}>
+        <boxGeometry args={[0.08, 0.44, 1.85]} />
+        <meshStandardMaterial color={glass} metalness={0.28} roughness={0.04} transparent opacity={0.72} />
+      </mesh>
+      {/* Bumpers */}
+      <mesh position={[0, 0.30, 2.18]}>
+        <boxGeometry args={[1.75, 0.32, 0.16]} />
+        <meshStandardMaterial color="#aaaaaa" metalness={0.55} roughness={0.28} />
+      </mesh>
+      <mesh position={[0, 0.30, -2.18]}>
+        <boxGeometry args={[1.75, 0.32, 0.16]} />
+        <meshStandardMaterial color="#aaaaaa" metalness={0.55} roughness={0.28} />
+      </mesh>
+      {/* Headlights */}
+      <mesh position={[-0.55, 0.44, 2.12]}>
+        <boxGeometry args={[0.35, 0.20, 0.06]} />
+        <meshStandardMaterial color="#ffffee" emissive="#ffff88" emissiveIntensity={0.4} roughness={0.05} />
+      </mesh>
+      <mesh position={[ 0.55, 0.44, 2.12]}>
+        <boxGeometry args={[0.35, 0.20, 0.06]} />
+        <meshStandardMaterial color="#ffffee" emissive="#ffff88" emissiveIntensity={0.4} roughness={0.05} />
+      </mesh>
+      {/* Taillights */}
+      <mesh position={[-0.55, 0.44, -2.12]}>
+        <boxGeometry args={[0.35, 0.20, 0.06]} />
+        <meshStandardMaterial color="#cc2200" emissive="#aa1100" emissiveIntensity={0.5} roughness={0.08} />
+      </mesh>
+      <mesh position={[ 0.55, 0.44, -2.12]}>
+        <boxGeometry args={[0.35, 0.20, 0.06]} />
+        <meshStandardMaterial color="#cc2200" emissive="#aa1100" emissiveIntensity={0.5} roughness={0.08} />
+      </mesh>
+      {/* Wheels — 4 */}
+      {([[-0.94, 0.25, 1.35], [0.94, 0.25, 1.35], [-0.94, 0.25, -1.35], [0.94, 0.25, -1.35]] as [number,number,number][]).map((p, i) => (
+        <group key={i} position={p} rotation={[Math.PI / 2, 0, 0]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.30, 0.30, 0.22, 16]} />
+            <meshStandardMaterial color={wheel} roughness={0.75} />
+          </mesh>
+          <mesh position={[0, 0, i % 2 === 0 ? 0.115 : -0.115]}>
+            <cylinderGeometry args={[0.18, 0.18, 0.04, 12]} />
+            <meshStandardMaterial color={rim} metalness={0.7} roughness={0.25} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+// ── GLB NPCs from Meshy AI ────────────────────────────────────────────────────
+
+function ChillGuyNPC({ position, rotation = 0, phase = 0 }: {
   position: [number, number, number]; rotation?: number; phase?: number
 }) {
-  const { scene } = useGLTF('/athlete_in_black_and_red_activewear.glb')
-  const groupRef   = useRef<THREE.Group>(null)
-  const cloned     = useRef(scene.clone(true))
-
-  // Model bounding box: Y min=-0.95 max=0.95 → lift by 0.95 so feet sit on ground
-  const BASE_Y = position[1] + 0.95
+  const { scene } = useGLTF('/Meshy_AI_Chill_guy_0424232958_texture.glb')
+  const groupRef  = useRef<THREE.Group>(null)
+  const cloned    = useRef(scene.clone(true))
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.elapsedTime + phase
-    groupRef.current.scale.y    = 1 + Math.sin(t * 1.6) * 0.012
-    groupRef.current.rotation.z = Math.sin(t * 0.9 + 1.1) * 0.018
-    groupRef.current.position.y = BASE_Y + Math.abs(Math.sin(t * 1.6)) * 0.03
+    groupRef.current.position.y = position[1] + Math.sin(t * 1.1) * 0.008
+    groupRef.current.rotation.y = rotation + Math.sin(t * 0.4) * 0.06
   })
 
   return (
-    <group ref={groupRef} position={[position[0], BASE_Y, position[2]]} rotation={[0, rotation, 0]} scale={0.9}>
+    <group ref={groupRef} position={position} rotation={[0, rotation, 0]} scale={1.0}>
+      <primitive object={cloned.current} />
+    </group>
+  )
+}
+
+function AnimeGirlNPC({ position, rotation = 0, phase = 0 }: {
+  position: [number, number, number]; rotation?: number; phase?: number
+}) {
+  const { scene } = useGLTF('/Meshy_AI_chill_anime_girl_cur_0424233138_texture.glb')
+  const groupRef  = useRef<THREE.Group>(null)
+  const cloned    = useRef(scene.clone(true))
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
+    const t = clock.elapsedTime + phase
+    groupRef.current.position.y = position[1] + Math.sin(t * 1.3) * 0.007
+    groupRef.current.rotation.y = rotation + Math.sin(t * 0.5 + 0.8) * 0.05
+  })
+
+  return (
+    <group ref={groupRef} position={position} rotation={[0, rotation, 0]} scale={1.0}>
+      <primitive object={cloned.current} />
+    </group>
+  )
+}
+
+function ChihuahuaNPC({ position, rotation = 0, phase = 0 }: {
+  position: [number, number, number]; rotation?: number; phase?: number
+}) {
+  const { scene } = useGLTF('/Meshy_AI_Chill_Chihuahua_0424232815_texture.glb')
+  const groupRef  = useRef<THREE.Group>(null)
+  const cloned    = useRef(scene.clone(true))
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
+    const t = clock.elapsedTime + phase
+    // Dog tail-wag sway + gentle bob
+    groupRef.current.rotation.y = rotation + Math.sin(t * 2.2) * 0.12
+    groupRef.current.position.y = position[1] + Math.abs(Math.sin(t * 3.5)) * 0.012
+  })
+
+  return (
+    <group ref={groupRef} position={position} rotation={[0, rotation, 0]} scale={1.0}>
       <primitive object={cloned.current} />
     </group>
   )
@@ -881,13 +917,12 @@ export function BeachClub() {
       <Ground />
       <Ocean />
       <WaveAnimation />
-      <ShoreFoam />
-      <Clouds />
       <Pool />
       <Bar />
       <DJBooth />
       <BeachRestaurant />
       <BoundaryWalls />
+      <ClubBuilding />
       {/* Pool-side thatch kiosks — semi-transparent roof */}
       <ThatchKiosk position={[-11, 0, -8]} />
       <ThatchKiosk position={[11, 0, -12]} />
@@ -900,17 +935,11 @@ export function BeachClub() {
       <BackgroundCustomer position={[3,    0, -5]}  color="#2a4a6a" rotation={-0.3} />
       <BackgroundCustomer position={[-2,   0, -12]} color="#8a6a2a" rotation={0.8} />
       <BackgroundCustomer position={[2,    0, -12]} color="#4a2a8a" rotation={-0.5} />
-      {/* Dancing crowd on the dance floor */}
-      <DanceFloor />
-      <DanceSparkles />
-      <DancingFigure position={[-3,   0, -17.5]} bodyColor="#e91e8c" headColor="#d4a07a" phase={0.0} />
-      <DancingFigure position={[ 0,   0, -17.5]} bodyColor="#2196f3" headColor="#f0c27f" phase={0.7} />
-      <DancingFigure position={[ 3,   0, -17.5]} bodyColor="#ff5722" headColor="#c8a07a" phase={1.4} />
-      <DancingFigure position={[-2,   0, -19.8]} bodyColor="#9c27b0" headColor="#d4a07a" phase={2.1} />
-      <DancingFigure position={[ 2,   0, -19.8]} bodyColor="#4caf50" headColor="#c0885a" phase={2.8} />
-      <DancingFigure position={[ 0,   0, -21.8]} bodyColor="#ff9800" headColor="#e8b88a" phase={3.5} />
       <BackgroundCustomer position={[-6,   0, -28]} color="#3a7a4a" rotation={1.2} />
       <BackgroundCustomer position={[6,    0, -28]} color="#7a3a4a" rotation={-0.7} />
+      <BackgroundCustomer position={[0,    0, -32]} color="#4a5a8a" rotation={0.2} />
+      <BackgroundCustomer position={[-10,  0, -30]} color="#aa5533" rotation={-0.4} />
+      <BackgroundCustomer position={[10,   0, -30]} color="#335588" rotation={0.6} />
 
       {/* Club-perimeter palms */}
       <PalmTree position={[-14, 0, -16]} lean={-1} seed={0} />
@@ -970,19 +999,62 @@ export function BeachClub() {
       <Umbrella position={[-3,  0, -35]}   color="#7ec8e3" />
       <Umbrella position={[3,   0, -35]}   color="#ff9966" />
 
-      {/* Tiki torches — 4 only (performance) */}
+      {/* Tiki torches */}
       <TikiTorch position={[-7, 0, -17]} />
       <TikiTorch position={[7,  0, -17]} />
       <TikiTorch position={[-7, 0,  -4]} />
       <TikiTorch position={[7,  0,  -4]} />
 
-      {/* GLB Athletes */}
-      <AthleteNPC position={[2,   0,  4]}  rotation={Math.PI} phase={0.0} />
-      <AthleteNPC position={[6,   0, -8]}  rotation={-0.8}    phase={0.7} />
-      <AthleteNPC position={[-10, 0, -30]} rotation={0.4}     phase={1.3} />
-      <AthleteNPC position={[10,  0, -30]} rotation={2.8}     phase={2.6} />
+      {/* Parked cars — entrance / parking area near front */}
+      <ParkedCar position={[-22, 0, 20]} rotation={0}             bodyColor="#c8d8e8" />
+      <ParkedCar position={[-16, 0, 20]} rotation={0}             bodyColor="#e8d8c8" />
+      <ParkedCar position={[-10, 0, 20]} rotation={0}             bodyColor="#c8e8c8" />
+      <ParkedCar position={[ 10, 0, 20]} rotation={Math.PI}       bodyColor="#e8c8c8" />
+      <ParkedCar position={[ 16, 0, 20]} rotation={Math.PI}       bodyColor="#d0d0d0" />
+      <ParkedCar position={[ 22, 0, 20]} rotation={Math.PI}       bodyColor="#e8e0a8" />
+
+      {/* Entrance palms flanking the main gate */}
+      <PalmTree position={[-5,  0, 22]} lean={-0.5} seed={20} />
+      <PalmTree position={[ 5,  0, 22]} lean={0.5}  seed={21} />
+
+      {/* Street lamps along entrance path */}
+      {([-20, -12, -4, 4, 12, 20] as number[]).map((x, i) => (
+        <group key={i} position={[x, 0, 15]}>
+          <mesh position={[0, 2.4, 0]} castShadow>
+            <cylinderGeometry args={[0.055, 0.075, 4.8, 8]} />
+            <meshStandardMaterial color="#888888" metalness={0.6} roughness={0.35} />
+          </mesh>
+          <mesh position={[0, 4.85, 0.28]}>
+            <boxGeometry args={[0.22, 0.18, 0.55]} />
+            <meshStandardMaterial color="#cccccc" metalness={0.5} roughness={0.3} />
+          </mesh>
+          <mesh position={[0, 4.82, 0.38]}>
+            <boxGeometry args={[0.18, 0.12, 0.04]} />
+            <meshStandardMaterial color="#ffffcc" emissive="#ffff88" emissiveIntensity={1.2} roughness={0.1} />
+          </mesh>
+          <pointLight position={[0, 4.8, 0.4]} intensity={8} distance={12} color="#ffeeaa" decay={2} />
+        </group>
+      ))}
+
+      {/* ── Meshy AI NPCs ── */}
+      {/* Chill guys — by the bar and pool */}
+      <ChillGuyNPC position={[13.5, 0, -3]}  rotation={Math.PI}       phase={0.0} />
+      <ChillGuyNPC position={[13.5, 0, -1]}  rotation={Math.PI}       phase={1.2} />
+      <ChillGuyNPC position={[-4,   0, -6]}  rotation={0.5}           phase={2.1} />
+      <ChillGuyNPC position={[4,    0, -6]}  rotation={-0.4}          phase={0.7} />
+
+      {/* Anime girls — pool deck + beach */}
+      <AnimeGirlNPC position={[-3,  0, -12]} rotation={0.8}           phase={0.3} />
+      <AnimeGirlNPC position={[3,   0, -12]} rotation={-0.5}          phase={1.5} />
+      <AnimeGirlNPC position={[0,   0, -30]} rotation={0.2}           phase={2.8} />
+
+      {/* Chihuahua — roaming near entrance */}
+      <ChihuahuaNPC position={[2,   0,  8]}  rotation={-0.6}          phase={0.0} />
+      <ChihuahuaNPC position={[-6,  0,  5]}  rotation={1.2}           phase={1.8} />
     </>
   )
 }
 
-useGLTF.preload('/athlete_in_black_and_red_activewear.glb')
+useGLTF.preload('/Meshy_AI_Chill_guy_0424232958_texture.glb')
+useGLTF.preload('/Meshy_AI_chill_anime_girl_cur_0424233138_texture.glb')
+useGLTF.preload('/Meshy_AI_Chill_Chihuahua_0424232815_texture.glb')
