@@ -530,7 +530,10 @@ function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsCo
 }
 
 // ─── NPC ─────────────────────────────────────────────────────────────────────
-function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
+function NPCCharacter({ npc, nearby, playerPosRef }: {
+  npc: NpcDef; nearby: boolean
+  playerPosRef: React.RefObject<{ x: number; z: number }>
+}) {
   const groupRef = useRef<THREE.Group>(null)
   const pos = useRef({ x: npc.position[0], z: npc.position[2] })
   const target = useRef({ x: npc.position[0], z: npc.position[2] })
@@ -564,8 +567,16 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
       while (rotDiff > Math.PI) rotDiff -= Math.PI * 2
       while (rotDiff < -Math.PI) rotDiff += Math.PI * 2
       groupRef.current.rotation.y += rotDiff * Math.min(1, 8 * delta)
-    } else if (groupRef.current.rotation.y === 0) {
-      groupRef.current.rotation.y = Math.PI
+    } else {
+      // When idle: face player if nearby, else drift back to default
+      const pp = playerPosRef.current
+      const faceTarget = nearby && pp
+        ? Math.atan2(pp.x - pos.current.x, pp.z - pos.current.z)
+        : Math.PI
+      let rotDiff = faceTarget - groupRef.current.rotation.y
+      while (rotDiff > Math.PI) rotDiff -= Math.PI * 2
+      while (rotDiff < -Math.PI) rotDiff += Math.PI * 2
+      groupRef.current.rotation.y += rotDiff * Math.min(1, 3 * delta)
     }
     groupRef.current.position.y = Math.sin(Date.now() * 0.0015 + npc.position[0]) * 0.04
   })
@@ -1435,7 +1446,7 @@ export default function App() {
         <ValentinaBuggy />
 
         {NPCS.map(npc => (
-          <NPCCharacter key={npc.id} npc={npc} nearby={nearbyNpc?.id === npc.id} />
+          <NPCCharacter key={npc.id} npc={npc} nearby={nearbyNpc?.id === npc.id} playerPosRef={positionRef} />
         ))}
 
         <AICustomers

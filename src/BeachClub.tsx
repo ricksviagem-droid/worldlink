@@ -66,12 +66,24 @@ function Ocean() {
 
 function Pool() {
   const waterRef = useRef<THREE.MeshStandardMaterial>(null)
+  const c1 = useRef<THREE.PointLight>(null)
+  const c2 = useRef<THREE.PointLight>(null)
+  const c3 = useRef<THREE.PointLight>(null)
 
   useFrame(({ clock }) => {
-    if (!waterRef.current) return
     const t = clock.elapsedTime
-    waterRef.current.color.setHSL(0.535 + Math.sin(t * 0.32) * 0.02, 0.82, 0.50 + Math.sin(t * 0.58) * 0.04)
-    waterRef.current.opacity = 0.86 + Math.sin(t * 0.85) * 0.05
+    if (waterRef.current) {
+      waterRef.current.color.setHSL(0.535 + Math.sin(t * 0.32) * 0.02, 0.82, 0.50 + Math.sin(t * 0.58) * 0.04)
+      waterRef.current.opacity = 0.86 + Math.sin(t * 0.85) * 0.05
+    }
+    // Caustic light animation — 3 slowly orbiting lights inside pool
+    ;[c1, c2, c3].forEach((r, i) => {
+      if (!r.current) return
+      const a = t * 0.55 + i * (Math.PI * 2 / 3)
+      r.current.position.x = Math.cos(a) * 2.8
+      r.current.position.z = -10 + Math.sin(a) * 1.9
+      r.current.intensity = 2.2 + Math.sin(t * 2.4 + i * 1.3) * 0.9
+    })
   })
 
   const rim = '#c4b49a'
@@ -117,8 +129,11 @@ function Pool() {
         <meshStandardMaterial color={rim} roughness={0.5} />
       </mesh>
 
-      {/* Pool underwater light glow */}
-      <pointLight position={[0, 0.15, -10]} intensity={8} distance={14} color="#00ddee" decay={2} />
+      {/* Pool underwater light glow + 3 caustic orbits */}
+      <pointLight position={[0, 0.15, -10]} intensity={7} distance={14} color="#00ddee" decay={2} />
+      <pointLight ref={c1} position={[0, 0.3, -10]} intensity={2} distance={9} color="#40e8ff" decay={2} />
+      <pointLight ref={c2} position={[2, 0.3, -11]} intensity={2} distance={9} color="#30d8f0" decay={2} />
+      <pointLight ref={c3} position={[-2, 0.3, -9]} intensity={2} distance={9} color="#55eeff" decay={2} />
     </group>
   )
 }
@@ -327,6 +342,21 @@ function ShoreFoam() {
 }
 
 function TikiTorch({ position }: { position: [number, number, number] }) {
+  const flameRef = useRef<THREE.Mesh>(null)
+  const lightRef = useRef<THREE.PointLight>(null)
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime
+    const f = 0.88 + Math.sin(t * 18.3) * 0.07 + Math.sin(t * 25.7) * 0.05
+    if (flameRef.current) {
+      flameRef.current.scale.setScalar(f)
+      flameRef.current.position.y = 2.88 + Math.sin(t * 12.1) * 0.03
+      ;(flameRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.85 + Math.sin(t * 14.4) * 0.15
+    }
+    if (lightRef.current) {
+      lightRef.current.intensity = 4.2 + Math.sin(t * 18.3) * 0.9 + Math.sin(t * 25.7) * 0.6
+      lightRef.current.color.setHSL(0.075 + Math.sin(t * 6.2) * 0.018, 1, 0.54)
+    }
+  })
   return (
     <group position={position}>
       <mesh position={[0, 1.35, 0]} castShadow>
@@ -337,11 +367,11 @@ function TikiTorch({ position }: { position: [number, number, number] }) {
         <cylinderGeometry args={[0.13, 0.09, 0.28, 8]} />
         <meshStandardMaterial color="#503510" roughness={0.85} />
       </mesh>
-      <mesh position={[0, 2.88, 0]}>
+      <mesh ref={flameRef} position={[0, 2.88, 0]}>
         <sphereGeometry args={[0.1, 8, 8]} />
         <meshStandardMaterial color="#ff7700" emissive="#ff4400" emissiveIntensity={1.0} />
       </mesh>
-      <pointLight position={[0, 2.9, 0]} intensity={4} distance={7} color="#ff8800" decay={2} />
+      <pointLight ref={lightRef} position={[0, 2.9, 0]} intensity={4} distance={7} color="#ff8800" decay={2} />
     </group>
   )
 }
@@ -765,6 +795,59 @@ function BackgroundCustomer({ position, color, rotation = 0 }: {
   )
 }
 
+const BLOB_OFFSETS: [number, number, number, number][] = [
+  [0, 0, 0, 1], [2.3, 0.4, 0, 0.82], [-2.0, 0.3, 0, 0.75],
+  [1.1, 1.2, 0.5, 0.68], [-0.9, 0.9, -0.4, 0.62], [3.2, 0.0, 0.3, 0.58],
+]
+
+const CLOUD_DATA = [
+  { x0: -70, y: 32, z: -72,  speed: 0.9,  scale: 5.0 },
+  { x0:  30, y: 44, z: -96,  speed: 0.55, scale: 7.5 },
+  { x0: -10, y: 28, z: -62,  speed: 1.15, scale: 4.2 },
+  { x0:  65, y: 38, z: -84,  speed: 0.7,  scale: 6.0 },
+  { x0: -50, y: 52, z: -118, speed: 0.38, scale: 9.0 },
+  { x0:  15, y: 24, z: -55,  speed: 1.4,  scale: 3.8 },
+]
+
+function Clouds() {
+  const grpRefs  = useRef<(THREE.Group | null)[]>([])
+  const matRefs  = useRef<(THREE.MeshStandardMaterial | null)[][]>(CLOUD_DATA.map(() => []))
+
+  useFrame(({ clock }) => {
+    const t = (clock.elapsedTime / 300) % 1
+    let night = 0
+    if      (t >= 0.42 && t < 0.52) night = (t - 0.42) / 0.10
+    else if (t >= 0.52 && t < 0.78) night = 1.0
+    else if (t >= 0.78 && t < 0.90) night = 1 - (t - 0.78) / 0.12
+    const opacity = Math.max(0, 1 - night * 2.0) * 0.62
+
+    CLOUD_DATA.forEach(({ x0, speed }, i) => {
+      const grp = grpRefs.current[i]
+      if (grp) grp.position.x = ((x0 + clock.elapsedTime * speed + 220) % 440) - 220
+      matRefs.current[i].forEach(m => { if (m) m.opacity = opacity })
+    })
+  })
+
+  return (
+    <>
+      {CLOUD_DATA.map(({ x0, y, z, scale }, ci) => (
+        <group key={ci} ref={el => { grpRefs.current[ci] = el }} position={[x0, y, z]}>
+          {BLOB_OFFSETS.map(([bx, by, bz, br], bi) => (
+            <mesh key={bi} position={[bx * scale, by * scale, bz * scale]}>
+              <sphereGeometry args={[br * scale, 7, 5]} />
+              <meshStandardMaterial
+                ref={el => { matRefs.current[ci][bi] = el }}
+                color="#ffffff" transparent opacity={0.62}
+                roughness={1} fog={false} depthWrite={false}
+              />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </>
+  )
+}
+
 export function BeachClub() {
   return (
     <>
@@ -772,6 +855,7 @@ export function BeachClub() {
       <Ocean />
       <WaveAnimation />
       <ShoreFoam />
+      <Clouds />
       <Pool />
       <Bar />
       <DJBooth />
