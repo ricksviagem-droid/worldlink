@@ -631,15 +631,62 @@ function BoundaryWalls() {
 function BackgroundCustomer({ position, color, rotation = 0 }: {
   position: [number, number, number]; color: string; rotation?: number
 }) {
+  const HAIR = ['#1a0c04','#2a1208','#8a5a2a','#c09060','#3a2010','#0a0808']
+  const SKIN = ['#c8a07a','#d4a88a','#b87858','#e8c4a0','#a06040','#f0d0b0']
+  const hi = Math.abs(Math.floor(position[0] * 7.3 + position[2] * 3.1)) % HAIR.length
+  const si = Math.abs(Math.floor(position[0] * 5.1 + position[2] * 11.7)) % SKIN.length
+  const hairColor = HAIR[hi]
+  const headColor = SKIN[si]
+  const pantsColor = '#1e2a3a'
+
   return (
     <group position={position} rotation={[0, rotation, 0]}>
-      <mesh position={[0, 0.56, 0]}>
-        <capsuleGeometry args={[0.15, 0.66, 4, 8]} />
-        <meshStandardMaterial color={color} roughness={0.7} />
+      {/* Legs */}
+      <mesh position={[-0.10, 0.52, 0]}>
+        <capsuleGeometry args={[0.075, 0.70, 4, 8]} />
+        <meshStandardMaterial color={pantsColor} roughness={0.55} />
       </mesh>
-      <mesh position={[0, 1.3, 0]}>
-        <sphereGeometry args={[0.19, 10, 10]} />
-        <meshStandardMaterial color="#c8a07a" roughness={0.65} />
+      <mesh position={[0.10, 0.52, 0]}>
+        <capsuleGeometry args={[0.075, 0.70, 4, 8]} />
+        <meshStandardMaterial color={pantsColor} roughness={0.55} />
+      </mesh>
+      {/* Torso */}
+      <mesh position={[0, 1.14, 0]}>
+        <capsuleGeometry args={[0.155, 0.36, 6, 12]} />
+        <meshStandardMaterial color={color} roughness={0.50} />
+      </mesh>
+      {/* Arms */}
+      <mesh position={[-0.235, 1.08, 0]} rotation={[0.1, 0, 0.28]}>
+        <capsuleGeometry args={[0.052, 0.50, 4, 8]} />
+        <meshStandardMaterial color={color} roughness={0.52} />
+      </mesh>
+      <mesh position={[0.235, 1.08, 0]} rotation={[0.1, 0, -0.28]}>
+        <capsuleGeometry args={[0.052, 0.50, 4, 8]} />
+        <meshStandardMaterial color={color} roughness={0.52} />
+      </mesh>
+      {/* Neck */}
+      <mesh position={[0, 1.43, 0]}>
+        <cylinderGeometry args={[0.058, 0.072, 0.10, 8]} />
+        <meshStandardMaterial color={headColor} roughness={0.42} />
+      </mesh>
+      {/* Head */}
+      <mesh position={[0, 1.585, 0]}>
+        <sphereGeometry args={[0.170, 16, 12]} />
+        <meshStandardMaterial color={headColor} roughness={0.38} />
+      </mesh>
+      {/* Hair */}
+      <mesh position={[0, 1.655, -0.015]} scale={[1.02, 0.68, 1.02]}>
+        <sphereGeometry args={[0.172, 14, 10]} />
+        <meshStandardMaterial color={hairColor} roughness={0.65} />
+      </mesh>
+      {/* Eyes (simple dots) */}
+      <mesh position={[-0.062, 1.598, 0.156]}>
+        <sphereGeometry args={[0.022, 6, 5]} />
+        <meshStandardMaterial color="#1a1a2a" roughness={0.2} />
+      </mesh>
+      <mesh position={[0.062, 1.598, 0.156]}>
+        <sphereGeometry args={[0.022, 6, 5]} />
+        <meshStandardMaterial color="#1a1a2a" roughness={0.2} />
       </mesh>
     </group>
   )
