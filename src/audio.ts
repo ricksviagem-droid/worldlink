@@ -23,7 +23,7 @@ class AudioSystem {
     comp.connect(this.ctx.destination)
 
     this.master = this.ctx.createGain()
-    this.master.gain.value = 0.28
+    this.master.gain.value = 0.13
     this.master.connect(comp)
 
     // Generate all buffers upfront (different lengths = uncorrelated loops)
