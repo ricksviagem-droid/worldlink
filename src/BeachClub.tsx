@@ -188,8 +188,15 @@ function PalmTree({ position, lean = 0, seed = 0 }: {
   lean?: number
   seed?: number
 }) {
+  const treeRef = useRef<THREE.Group>(null)
+  useFrame(({ clock }) => {
+    if (!treeRef.current) return
+    const t = clock.elapsedTime * 0.26 + seed * 1.9
+    treeRef.current.rotation.z = Math.sin(t) * 0.020
+    treeRef.current.rotation.x = Math.sin(t * 0.65 + 1.3) * 0.012
+  })
   return (
-    <group position={position}>
+    <group ref={treeRef} position={position}>
       {/* Lower trunk — wide base tapering */}
       <mesh position={[lean * 0.03, 1.85, lean * 0.015]} rotation={[lean * 0.03, 0, lean * 0.048 * 0.55]} castShadow>
         <cylinderGeometry args={[0.17, 0.30, 3.7, 8]} />
