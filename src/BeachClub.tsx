@@ -976,10 +976,11 @@ export function BeachClub() {
       <TikiTorch position={[-7, 0,  -4]} />
       <TikiTorch position={[7,  0,  -4]} />
 
-      {/* GLB Athletes — pool area and beach */}
-      <AthleteNPC position={[6,   0, -8]}  rotation={-0.8} phase={0.0} />
-      <AthleteNPC position={[-10, 0, -30]} rotation={0.4}  phase={1.3} />
-      <AthleteNPC position={[10,  0, -30]} rotation={2.8}  phase={2.6} />
+      {/* GLB Athletes */}
+      <AthleteNPC position={[2,   0,  4]}  rotation={Math.PI} phase={0.0} />
+      <AthleteNPC position={[6,   0, -8]}  rotation={-0.8}    phase={0.7} />
+      <AthleteNPC position={[-10, 0, -30]} rotation={0.4}     phase={1.3} />
+      <AthleteNPC position={[10,  0, -30]} rotation={2.8}     phase={2.6} />
     </>
   )
 }

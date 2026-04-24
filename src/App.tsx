@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { io } from 'socket.io-client'
 import * as THREE from 'three'
 import { BeachClub } from './BeachClub'
@@ -1515,7 +1515,9 @@ export default function App() {
 
         <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} hasInputRef={hasInputRef} />
         <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} hasInputRef={hasInputRef} camModeRef={camModeRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
-        <BeachClub />
+        <Suspense fallback={null}>
+          <BeachClub />
+        </Suspense>
         <ReceptionArea />
         <ValentinaBuggy />
 
