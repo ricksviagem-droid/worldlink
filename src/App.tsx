@@ -21,6 +21,7 @@ import { MatchNotification, MatchesPanel } from './MatchesPanel'
 import { DMPanel, type DMMessage } from './DMPanel'
 import { PeoplePanel } from './PeoplePanel'
 import { Shop } from './Shop'
+import { SessionReport } from './SessionReport'
 import { getOutfit, STORAGE_KEY, type PlayerProfile } from './outfits'
 
 const socket = io()
@@ -728,6 +729,11 @@ export default function App() {
   const [showPeoplePanel, setShowPeoplePanel] = useState(false)
   const [notification, setNotification] = useState<string | null>(null)
 
+  // Session tracking for Rick's end-of-session English report
+  const sessionStartRef   = useRef(Date.now())
+  const npcMessagesRef    = useRef<string[]>([])   // all NPC assistant replies this session
+  const [showSessionReport, setShowSessionReport] = useState(false)
+
   const myOutfit = getOutfit(myProfile?.outfitId ?? 'beach')
 
   const handleSaveProfile = (profile: PlayerProfile) => {
@@ -1252,6 +1258,14 @@ export default function App() {
               {Object.keys(players).length}
             </div>
             <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
+            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
+            <button onClick={() => setShowSessionReport(true)} title="Finalizar sessão e ver relatório do Rick" style={{
+              padding: '5px 13px', borderRadius: 22, border: 'none',
+              background: 'transparent', color: 'rgba(255,200,100,0.8)',
+              fontFamily: '-apple-system, sans-serif', fontSize: 12,
+              fontWeight: 600, cursor: 'pointer', letterSpacing: 0.3,
+            }}>Finish</button>
+            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.12)' }} />
             <button onClick={() => toggleHud('topRight')} style={{
               width: 26, height: 26, borderRadius: '50%', border: 'none',
               background: 'transparent', color: 'rgba(255,255,255,0.35)',
@@ -1411,7 +1425,23 @@ export default function App() {
       )}
 
       {/* Chat panel */}
-      {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
+      {activeChatNpc && (
+        <ChatPanel
+          npc={activeChatNpc}
+          onClose={closeChat}
+          onNpcMessage={msg => { npcMessagesRef.current.push(msg) }}
+        />
+      )}
+
+      {/* Session report — Rick's English learning summary */}
+      {showSessionReport && (
+        <SessionReport
+          playerName={myProfile!.name}
+          durationMinutes={(Date.now() - sessionStartRef.current) / 60000}
+          npcMessages={npcMessagesRef.current}
+          onClose={() => setShowSessionReport(false)}
+        />
+      )}
 
       {/* People panel — opt-in directory */}
       {showPeoplePanel && (

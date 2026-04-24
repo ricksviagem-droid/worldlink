@@ -161,7 +161,66 @@ Write a 3-4 sentence performance review in Rick's warm, honest Brazilian style. 
   }
 })
 
-app.post('/api/tts', async (req, res) => {
+app.post('/api/session-report', async (req, res) => {
+  const { npcMessages, playerName, durationMinutes } = req.body
+
+  // Build a fallback without API
+  if (!openai) {
+    return res.json({
+      phrases: [],
+      rickMessage: `Great session, ${playerName || 'friend'}! Every minute you spend here, your English gets stronger. I'll be waiting for you to come back. 🌴`,
+      rickMessagePt: `Ótima sessão, ${playerName || 'amigo(a)'}! Cada minuto que você passa aqui, seu inglês fica mais forte. Estarei esperando você voltar. 🌴`,
+    })
+  }
+
+  const allText = (npcMessages || []).join('\n')
+  const prompt = `You are Rick, the charismatic Brazilian owner of Casa Blanca Beach Club. A guest named "${playerName || 'friend'}" just spent ${durationMinutes || '?'} minutes at the club practicing English by talking to the NPCs.
+
+Here are the English phrases/expressions they encountered during NPC conversations:
+---
+${allText || '(no conversations recorded)'}
+---
+
+Your task:
+1. Extract 4 to 7 interesting or useful English expressions, phrasal verbs, idioms, or vocabulary from the text above (choose the most useful/learnable ones). If there are none, make 4 common beach/social English phrases they would encounter at a beach club.
+2. For each phrase, write a short explanation in PORTUGUESE (1 sentence).
+3. Write a warm, encouraging closing message from Rick IN ENGLISH (2-3 sentences). Be personal and mention the session. End with a variation of "I'll be waiting for you to come back."
+4. Write the same closing message in PORTUGUESE.
+
+Reply in this exact JSON format:
+{
+  "phrases": [
+    {"en": "the expression", "pt": "explicação em português"},
+    ...
+  ],
+  "rickMessage": "Rick's English closing message",
+  "rickMessagePt": "Mensagem do Rick em português"
+}`
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 700,
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    })
+    const data = JSON.parse(completion.choices[0].message.content || '{}')
+    res.json({
+      phrases: data.phrases || [],
+      rickMessage: data.rickMessage || "See you next time, my friend!",
+      rickMessagePt: data.rickMessagePt || "Até a próxima, meu amigo!",
+    })
+  } catch {
+    res.status(500).json({
+      phrases: [],
+      rickMessage: `It was a pleasure having you here, ${playerName || 'friend'}. Keep practicing — every conversation makes you stronger. I'll be waiting for you to come back! 🌴`,
+      rickMessagePt: `Foi um prazer ter você aqui, ${playerName || 'amigo(a)'}. Continue praticando — cada conversa te deixa mais forte. Estarei esperando você voltar! 🌴`,
+    })
+  }
+})
+
+
   const { text, npcId } = req.body
   if (!openai) return res.status(503).json({ error: 'No API key' })
   try {

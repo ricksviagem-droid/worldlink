@@ -20,9 +20,10 @@ declare global {
 interface ChatPanelProps {
   npc: NpcDef
   onClose: () => void
+  onNpcMessage?: (text: string) => void
 }
 
-export function ChatPanel({ npc, onClose }: ChatPanelProps) {
+export function ChatPanel({ npc, onClose, onNpcMessage }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -58,6 +59,7 @@ export function ChatPanel({ npc, onClose }: ChatPanelProps) {
       })
       const data = await res.json()
       setMessages([...existing, { role: 'assistant', content: data.reply }])
+      onNpcMessage?.(data.reply)
     } catch {
       setMessages([...existing, { role: 'assistant', content: `Hey, I'm ${npc.name}!` }])
     }
