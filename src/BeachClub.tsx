@@ -1,6 +1,5 @@
 import { useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
-import { useRef, useMemo, Suspense } from 'react'
+import { useRef } from 'react'
 import * as THREE from 'three'
 
 function Ground() {
@@ -1045,26 +1044,6 @@ export function BeachClub() {
           <pointLight position={[0, 4.8, 0.4]} intensity={8} distance={12} color="#ffeeaa" decay={2} />
         </group>
       ))}
-
-      {/* ── Meshy AI NPCs ── */}
-      {/* Chill guys — by the bar and pool */}
-      <ChillGuyNPC position={[13.5, 0, -3]}  rotation={Math.PI}       phase={0.0} />
-      <ChillGuyNPC position={[13.5, 0, -1]}  rotation={Math.PI}       phase={1.2} />
-      <ChillGuyNPC position={[-4,   0, -6]}  rotation={0.5}           phase={2.1} />
-      <ChillGuyNPC position={[4,    0, -6]}  rotation={-0.4}          phase={0.7} />
-
-      {/* Anime girls — pool deck + beach */}
-      <AnimeGirlNPC position={[-3,  0, -12]} rotation={0.8}           phase={0.3} />
-      <AnimeGirlNPC position={[3,   0, -12]} rotation={-0.5}          phase={1.5} />
-      <AnimeGirlNPC position={[0,   0, -30]} rotation={0.2}           phase={2.8} />
-
-      {/* Chihuahua — roaming near entrance */}
-      <ChihuahuaNPC position={[2,   0,  8]}  rotation={-0.6}          phase={0.0} />
-      <ChihuahuaNPC position={[-6,  0,  5]}  rotation={1.2}           phase={1.8} />
     </>
   )
 }
-
-useGLTF.preload('/Meshy_AI_Chill_guy_0424232958_texture.glb')
-useGLTF.preload('/Meshy_AI_chill_anime_girl_cur_0424233138_texture.glb')
-useGLTF.preload('/Meshy_AI_Chill_Chihuahua_0424232815_texture.glb')
