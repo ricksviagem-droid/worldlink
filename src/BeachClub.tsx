@@ -1,6 +1,7 @@
 import { useFrame } from '@react-three/fiber'
 import { useRef } from 'react'
 import * as THREE from 'three'
+import { GlbNPC } from './GlbNPC'
 
 function Ground() {
   return (
@@ -1044,6 +1045,26 @@ export function BeachClub() {
           <pointLight position={[0, 4.8, 0.4]} intensity={8} distance={12} color="#ffeeaa" decay={2} />
         </group>
       ))}
+
+      {/* Meshy AI GLB NPCs — ErrorBoundary+Suspense so a failed load only hides that one model */}
+      <GlbNPC
+        url="/Meshy_AI_Chill_guy_0424232958_texture.glb"
+        position={[14, 0.9, -1]}
+        scale={1.0}
+        rotation={[0, -Math.PI / 2, 0]}
+      />
+      <GlbNPC
+        url="/Meshy_AI_chill_anime_girl_cur_0424233138_texture.glb"
+        position={[4, 0.9, -7]}
+        scale={1.0}
+        rotation={[0, Math.PI, 0]}
+      />
+      <GlbNPC
+        url="/Meshy_AI_Chill_Chihuahua_0424232815_texture.glb"
+        position={[6, 0.15, -30]}
+        scale={1.0}
+        rotation={[0, -Math.PI / 4, 0]}
+      />
     </>
   )
 }
