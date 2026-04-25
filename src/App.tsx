@@ -1056,7 +1056,7 @@ export default function App() {
 
         <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} />
         <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
-        <Suspense fallback={null}><BeachClub /></Suspense>
+        <BeachClub />
         <ReceptionArea />
         <ValentinaBuggy />
 

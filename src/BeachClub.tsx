@@ -1,6 +1,6 @@
 import { useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
-import { useRef } from 'react'
+import { useRef, useMemo, Suspense } from 'react'
 import * as THREE from 'three'
 
 function Ground() {
@@ -847,68 +847,78 @@ function ParkedCar({ position, rotation = 0, bodyColor = '#e8e0d0' }: {
 
 // ── GLB NPCs from Meshy AI ────────────────────────────────────────────────────
 
-function ChillGuyNPC({ position, rotation = 0, phase = 0 }: {
+function ChillGuyMesh({ position, rotation = 0, phase = 0 }: {
   position: [number, number, number]; rotation?: number; phase?: number
 }) {
   const { scene } = useGLTF('/Meshy_AI_Chill_guy_0424232958_texture.glb')
+  const cloned    = useMemo(() => scene.clone(true), [scene])
   const groupRef  = useRef<THREE.Group>(null)
-  const cloned    = useRef(scene.clone(true))
+  // Meshy AI characters are centered at Y=0 — lift by 0.9 so feet touch ground
+  const baseY     = position[1] + 0.9
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.elapsedTime + phase
-    groupRef.current.position.y = position[1] + Math.sin(t * 1.1) * 0.008
+    groupRef.current.position.y = baseY + Math.sin(t * 1.1) * 0.007
     groupRef.current.rotation.y = rotation + Math.sin(t * 0.4) * 0.06
   })
-
   return (
-    <group ref={groupRef} position={position} rotation={[0, rotation, 0]} scale={1.0}>
-      <primitive object={cloned.current} />
+    <group ref={groupRef} position={[position[0], baseY, position[2]]} rotation={[0, rotation, 0]} scale={1.0}>
+      <primitive object={cloned} />
     </group>
   )
 }
+function ChillGuyNPC(props: { position: [number,number,number]; rotation?: number; phase?: number }) {
+  return <Suspense fallback={null}><ChillGuyMesh {...props} /></Suspense>
+}
 
-function AnimeGirlNPC({ position, rotation = 0, phase = 0 }: {
+function AnimeGirlMesh({ position, rotation = 0, phase = 0 }: {
   position: [number, number, number]; rotation?: number; phase?: number
 }) {
   const { scene } = useGLTF('/Meshy_AI_chill_anime_girl_cur_0424233138_texture.glb')
+  const cloned    = useMemo(() => scene.clone(true), [scene])
   const groupRef  = useRef<THREE.Group>(null)
-  const cloned    = useRef(scene.clone(true))
+  const baseY     = position[1] + 0.9
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.elapsedTime + phase
-    groupRef.current.position.y = position[1] + Math.sin(t * 1.3) * 0.007
+    groupRef.current.position.y = baseY + Math.sin(t * 1.3) * 0.006
     groupRef.current.rotation.y = rotation + Math.sin(t * 0.5 + 0.8) * 0.05
   })
-
   return (
-    <group ref={groupRef} position={position} rotation={[0, rotation, 0]} scale={1.0}>
-      <primitive object={cloned.current} />
+    <group ref={groupRef} position={[position[0], baseY, position[2]]} rotation={[0, rotation, 0]} scale={1.0}>
+      <primitive object={cloned} />
     </group>
   )
 }
+function AnimeGirlNPC(props: { position: [number,number,number]; rotation?: number; phase?: number }) {
+  return <Suspense fallback={null}><AnimeGirlMesh {...props} /></Suspense>
+}
 
-function ChihuahuaNPC({ position, rotation = 0, phase = 0 }: {
+function ChihuahuaMesh({ position, rotation = 0, phase = 0 }: {
   position: [number, number, number]; rotation?: number; phase?: number
 }) {
   const { scene } = useGLTF('/Meshy_AI_Chill_Chihuahua_0424232815_texture.glb')
+  const cloned    = useMemo(() => scene.clone(true), [scene])
   const groupRef  = useRef<THREE.Group>(null)
-  const cloned    = useRef(scene.clone(true))
+  // Chihuahua smaller — center lift ~0.15
+  const baseY     = position[1] + 0.15
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.elapsedTime + phase
-    // Dog tail-wag sway + gentle bob
     groupRef.current.rotation.y = rotation + Math.sin(t * 2.2) * 0.12
-    groupRef.current.position.y = position[1] + Math.abs(Math.sin(t * 3.5)) * 0.012
+    groupRef.current.position.y = baseY + Math.abs(Math.sin(t * 3.5)) * 0.010
   })
-
   return (
-    <group ref={groupRef} position={position} rotation={[0, rotation, 0]} scale={1.0}>
-      <primitive object={cloned.current} />
+    <group ref={groupRef} position={[position[0], baseY, position[2]]} rotation={[0, rotation, 0]} scale={1.0}>
+      <primitive object={cloned} />
     </group>
   )
+}
+function ChihuahuaNPC(props: { position: [number,number,number]; rotation?: number; phase?: number }) {
+  return <Suspense fallback={null}><ChihuahuaMesh {...props} /></Suspense>
 }
 
 export function BeachClub() {
