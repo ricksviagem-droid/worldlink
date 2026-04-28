@@ -35,8 +35,8 @@ export const NPCS: NpcDef[] = [
     hairColor: '#3a1a08',
     pantsColor: '#1e3a5a',
     position: [0, 0, 6],
-    glbUrl: '/athlete_in_black_and_red_activewear.glb',
-    glbScale: 1.0,
+    glbUrl: '/Meshy_AI_Chill_guy_0424232958_texture.glb',
+    glbScale: 1.08,
     glbYOffset: 0,
   },
   {
