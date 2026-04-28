@@ -34,6 +34,7 @@ function pickAction(
 class ErrBound extends Component<{ children: ReactNode }, { err: boolean }> {
   state = { err: false }
   static getDerivedStateFromError() { return { err: true } }
+  componentDidCatch(e: Error) { console.error('[RPMCharacter]', e.message, e.stack) }
   render() { return this.state.err ? null : this.props.children }
 }
 
@@ -50,56 +51,34 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
   const { scene, animations } = useGLTF(url)
   const groupRef = useRef<THREE.Group>(null)
 
-  const { clone, autoYOffset } = useMemo(() => {
+  // Single useMemo: clone + hasSkin. No bounding box (avoid geometry attribute errors).
+  const { clone, hasSkin } = useMemo(() => {
     const c = SkeletonUtils.clone(scene) as THREE.Object3D
     const tintColor = tint ? new THREE.Color(tint) : null
+    let skin = false
     c.traverse(obj => {
       const m = obj as THREE.SkinnedMesh
       if (!m.isMesh) return
       m.castShadow = true
       m.receiveShadow = false
       m.frustumCulled = false
-      if (tintColor && !Array.isArray(m.material)) {
-        const mat = (m.material as THREE.MeshStandardMaterial).clone()
-        mat.color.multiply(tintColor)
-        m.material = mat
+      if ((m as THREE.SkinnedMesh).isSkinnedMesh) skin = true
+      if (tintColor && m.material && !Array.isArray(m.material)) {
+        try {
+          const mat = (m.material as THREE.MeshStandardMaterial).clone()
+          if ((mat as THREE.MeshStandardMaterial).color) {
+            ;(mat as THREE.MeshStandardMaterial).color.multiply(tintColor)
+          }
+          m.material = mat
+        } catch { /* ignore tint errors */ }
       }
     })
-    c.updateMatrixWorld(true)
-    const box = new THREE.Box3()
-    c.traverse(obj => {
-      const m = obj as THREE.Mesh
-      if (!m.isMesh || !m.geometry) return
-      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox()
-      if (m.geometry.boundingBox)
-        box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld))
-    })
-    const auto = !box.isEmpty() && isFinite(box.min.y) && box.min.y < -0.05 ? -box.min.y : 0
-    return { clone: c, autoYOffset: auto }
+    return { clone: c, hasSkin: skin }
   }, [scene, tint])
 
   const { actions } = useAnimations(animations, groupRef)
 
-  const hasSkin = useMemo(() => {
-    let found = false
-    clone.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) found = true })
-    return found
-  }, [clone])
-
-  const bones = useMemo(() => {
-    if (!hasSkin) return {} as Partial<Record<keyof typeof BONE_VARIANTS, THREE.Bone>>
-    const b: Partial<Record<keyof typeof BONE_VARIANTS, THREE.Bone>> = {}
-    for (const [key, names] of Object.entries(BONE_VARIANTS)) {
-      const bone = findBone(clone, names)
-      if (bone) b[key as keyof typeof BONE_VARIANTS] = bone
-    }
-    return b
-  }, [clone, hasSkin])
-
-  const hasRig = useMemo(() => Object.keys(bones).length >= 4, [bones])
-
-  // Animation state stored in refs — computed in useEffect, not during render.
-  // This keeps errors away from the render path so ErrBound never silences the character.
+  // Animation state in refs — set in useEffect so errors don't reach ErrBound
   const idleRef     = useRef<THREE.AnimationAction | null>(null)
   const walkRef     = useRef<THREE.AnimationAction | null>(null)
   const hasClipsRef = useRef(false)
@@ -109,7 +88,6 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     if (!hasSkin) return
     const SKIP = ['walk', 'run', 'jog', 'dance', 'samba', 'tpose']
     const wAct = pickAction(actions, 'walk', 'run', 'jog', 'move')
-    // Prefer a clip named idle/stand; fall back to any non-locomotion/non-dance clip
     let iAct = pickAction(actions, 'idle', 'stand')
     if (!iAct) {
       for (const name of Object.keys(actions)) {
@@ -127,6 +105,21 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     return () => { Object.values(actions).forEach(a => a?.stop()) }
   }, [actions, hasSkin])
 
+  // Bone refs — computed in useEffect so errors don't reach ErrBound
+  const bonesRef  = useRef<Partial<Record<keyof typeof BONE_VARIANTS, THREE.Bone>>>({})
+  const hasRigRef = useRef(false)
+
+  useEffect(() => {
+    if (!hasSkin) return
+    const b: Partial<Record<keyof typeof BONE_VARIANTS, THREE.Bone>> = {}
+    for (const [key, names] of Object.entries(BONE_VARIANTS)) {
+      const bone = findBone(clone, names)
+      if (bone) b[key as keyof typeof BONE_VARIANTS] = bone
+    }
+    bonesRef.current  = b
+    hasRigRef.current = Object.keys(b).length >= 4
+  }, [clone, hasSkin])
+
   const walkT      = useRef(Math.random() * Math.PI * 2)
   const breathT    = useRef(Math.random() * Math.PI * 2)
   const talkT      = useRef(0)
@@ -134,11 +127,12 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
 
   useFrame((_, delta) => {
     if (!hasSkin || !groupRef.current) return
-    const g          = groupRef.current
-    const moving     = movingRef?.current ?? false
-    const talking    = talkingRef?.current ?? false
-    const hasClips   = hasClipsRef.current
-    const useProc    = hasRig && !hasClips
+    const g        = groupRef.current
+    const moving   = movingRef?.current ?? false
+    const talking  = talkingRef?.current ?? false
+    const hasClips = hasClipsRef.current
+    const useProc  = hasRigRef.current && !hasClips
+    const bones    = bonesRef.current
 
     breathT.current += delta * 1.1
     if (moving)  walkT.current += delta * 8.0
@@ -146,7 +140,6 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     speedBlend.current += ((moving ? 1 : 0) - speedBlend.current) * Math.min(1, 8 * delta)
     const spd = speedBlend.current
 
-    // Crossfade idle ↔ walk
     if (hasClips && moving !== wasMoving.current) {
       wasMoving.current = moving
       if (moving) {
@@ -158,7 +151,6 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
       }
     }
 
-    // Whole-body group motion
     const enhance   = hasClips ? 0.35 : 1.0
     const bounce    = Math.abs(Math.sin(walkT.current)) * 0.08 * spd
     const sideTilt  = Math.sin(walkT.current) * 0.06 * spd
@@ -166,7 +158,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     const groupSway = Math.sin(breathT.current * 0.7) * 0.016 * (1 - spd)
     const talkNod   = talking ? Math.sin(talkT.current) * 0.025 : 0
 
-    g.position.y = autoYOffset + yOffset + bounce * enhance
+    g.position.y = yOffset + bounce * enhance
     g.rotation.x = (-fwdLean + talkNod) * enhance
     g.rotation.z = (sideTilt + groupSway) * enhance
     if (!moving && !talking)
@@ -174,7 +166,6 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     else
       g.rotation.y += (0 - g.rotation.y) * 0.1
 
-    // Procedural bone animation — only for rigged models without animation clips
     if (!useProc) return
     const swing    = moving ? Math.sin(walkT.current) * 0.42 : 0
     const boneSway = !moving ? Math.sin(breathT.current * 0.7) * 0.018 : 0
@@ -196,7 +187,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
   })
 
   return (
-    <group ref={groupRef} position={[0, autoYOffset + yOffset, 0]}>
+    <group ref={groupRef} position={[0, yOffset, 0]}>
       <primitive object={clone} scale={scale} />
     </group>
   )
