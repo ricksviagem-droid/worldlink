@@ -2,6 +2,7 @@ import { useGLTF, useAnimations } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { Component, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 const BONE_VARIANTS: Record<string, string[]> = {
   hips:      ['Hips', 'mixamorig:Hips', 'Pelvis', 'hip'],
@@ -48,7 +49,8 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
 
   // ── Clone + tint ─────────────────────────────────────────────────────────
   const { clone, autoYOffset } = useMemo(() => {
-    const c = scene.clone(true)
+    // SkeletonUtils.clone properly rebinds SkinnedMesh skeletons — scene.clone(true) doesn't
+    const c = SkeletonUtils.clone(scene) as THREE.Object3D
     const tintColor = tint ? new THREE.Color(tint) : null
     c.traverse(obj => {
       const m = obj as THREE.Mesh
