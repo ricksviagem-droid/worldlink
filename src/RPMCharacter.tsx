@@ -94,11 +94,11 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     if (bones.rightUpLeg) bones.rightUpLeg.rotation.x += (-swing * 0.65 - bones.rightUpLeg.rotation.x) * lr
     if (bones.leftArm) {
       bones.leftArm.rotation.x += (-swing * 0.28 + idleSway * 0.5 - bones.leftArm.rotation.x) * lr
-      bones.leftArm.rotation.z += (0.12 - bones.leftArm.rotation.z) * lr * 0.1
+      bones.leftArm.rotation.z += (0.04 - bones.leftArm.rotation.z) * lr * 0.1
     }
     if (bones.rightArm) {
       bones.rightArm.rotation.x += ( swing * 0.28 - idleSway * 0.5 - bones.rightArm.rotation.x) * lr
-      bones.rightArm.rotation.z += (-0.12 - bones.rightArm.rotation.z) * lr * 0.1
+      bones.rightArm.rotation.z += (-0.04 - bones.rightArm.rotation.z) * lr * 0.1
     }
     if (bones.spine2) {
       bones.spine2.rotation.y += (Math.sin(walkT.current * 0.5) * (moving ? 0.04 : 0) + idleSway * 0.6 - bones.spine2.rotation.y) * lr * 0.4

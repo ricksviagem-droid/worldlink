@@ -31,10 +31,11 @@ class AudioSystem {
     this.waveBufs = [this.genNoise(6.7), this.genNoise(8.3), this.genNoise(5.9)]
     this.crowdBuf = this.genNoise(7.1)
 
-    this.startOcean()
-    this.startCrowd()
-    this.startDJ()
-    setTimeout(() => this.startBirds(), 800 + Math.random() * 1400)
+    // Background music disabled per user request
+    // this.startOcean()
+    // this.startCrowd()
+    // this.startDJ()
+    // setTimeout(() => this.startBirds(), 800 + Math.random() * 1400)
   }
 
   // Pink noise — Paul Kellet's algorithm

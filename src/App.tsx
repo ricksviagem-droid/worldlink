@@ -325,10 +325,9 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
     if (timer.current > 2.5 + Math.random() * 3) {
       const angle = Math.random() * Math.PI * 2
       const r = Math.random() * WANDER
-      target.current = {
-        x: npc.position[0] + Math.cos(angle) * r,
-        z: npc.position[2] + Math.sin(angle) * r,
-      }
+      const nx = npc.position[0] + Math.cos(angle) * r
+      const nz = npc.position[2] + Math.sin(angle) * r
+      if (canMove(nx, nz)) target.current = { x: nx, z: nz }
       timer.current = 0
     }
     const spd = 0.018
@@ -452,6 +451,7 @@ export default function App() {
   const [players, setPlayers] = useState<PlayersMap>({})
   const [nearbyNpc, setNearbyNpc] = useState<NpcDef | null>(null)
   const [activeChatNpc, setActiveChatNpc] = useState<NpcDef | null>(null)
+  const [npcProfileOpen, setNpcProfileOpen] = useState<NpcDef | null>(null)
   const [camMode, setCamMode] = useState<CamMode>('iso')
   const chatOpenRef    = useRef(false)
   const keysRef        = useRef<Record<string, boolean>>({})
@@ -681,8 +681,7 @@ export default function App() {
         }
         if (e.key === 'e' || e.key === 'E') {
           if (nearbyNpc) {
-            setActiveChatNpc(nearbyNpc)
-            chatOpenRef.current = true
+            setNpcProfileOpen(nearbyNpc)
             audio.playOpen()
           } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
             handleServeCustomer(nearbyCustomerId)
@@ -706,6 +705,7 @@ export default function App() {
 
   const closeChat = () => {
     setActiveChatNpc(null)
+    setNpcProfileOpen(null)
     chatOpenRef.current = false
     audio.playClose()
   }
@@ -794,8 +794,7 @@ export default function App() {
 
   const handleMobileTalk = () => {
     if (nearbyNpc && !chatOpenRef.current) {
-      setActiveChatNpc(nearbyNpc)
-      chatOpenRef.current = true
+      setNpcProfileOpen(nearbyNpc)
       audio.playOpen()
     } else if (nearbyCustomerId && customerNeeds[nearbyCustomerId] !== 'happy') {
       handleServeCustomer(nearbyCustomerId)
@@ -1000,6 +999,34 @@ export default function App() {
       {/* Chat panel */}
       {activeChatNpc && <ChatPanel npc={activeChatNpc} onClose={closeChat} />}
 
+      {/* NPC profile card (shown when approaching an NPC and pressing E) */}
+      {npcProfileOpen && !activeChatNpc && (
+        <ProfileCard
+          profile={{
+            name: npcProfileOpen.name,
+            bio: npcProfileOpen.bio,
+            age: npcProfileOpen.age,
+            role: npcProfileOpen.role,
+            personality: npcProfileOpen.personality,
+            interests: npcProfileOpen.interests,
+            story: npcProfileOpen.story,
+            bodyColor: npcProfileOpen.bodyColor,
+            headColor: npcProfileOpen.headColor,
+            isNpc: true,
+          }}
+          myInterests={myProfile?.interests ?? []}
+          isLiked={false}
+          isMatch={false}
+          onLike={() => {}}
+          onChat={() => {
+            setNpcProfileOpen(null)
+            setActiveChatNpc(npcProfileOpen)
+            chatOpenRef.current = true
+          }}
+          onClose={() => setNpcProfileOpen(null)}
+        />
+      )}
+
       {/* Nearby player profile card */}
       {nearbyPlayerId && remoteProfiles[nearbyPlayerId] && (
         <ProfileCard
@@ -1008,7 +1035,6 @@ export default function App() {
           isLiked={likedIds.has(nearbyPlayerId)}
           isMatch={matches.has(nearbyPlayerId)}
           onLike={() => handleLike(nearbyPlayerId)}
-          onSuperLike={() => handleLike(nearbyPlayerId, true)}
           onClose={() => setNearbyPlayerId(null)}
         />
       )}

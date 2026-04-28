@@ -16,12 +16,17 @@ const GLB_POOL = [
 ]
 
 export const CUSTOMER_DEFS = [
-  { id: 'c1', glbUrl: GLB_POOL[0], bodyColor: '#e74c3c', headColor: '#f0c27f', hairColor: '#3a1808', pantsColor: '#1a1828', spawn: [2, 0, -5] as [number, number, number] },
-  { id: 'c2', glbUrl: GLB_POOL[1], bodyColor: '#27ae60', headColor: '#d4a076', hairColor: '#2a1a08', pantsColor: '#c0a870', spawn: [-4, 0, -4] as [number, number, number] },
-  { id: 'c3', glbUrl: GLB_POOL[0], bodyColor: '#8e44ad', headColor: '#f0c27f', hairColor: '#1a0818', pantsColor: '#1a0a1a', spawn: [7, 0, -5] as [number, number, number] },
-  { id: 'c4', glbUrl: GLB_POOL[1], bodyColor: '#16a085', headColor: '#e8b88a', hairColor: '#5a3010', pantsColor: '#f0e8d8', spawn: [1, 0, -1] as [number, number, number] },
-  { id: 'c5', glbUrl: GLB_POOL[0], bodyColor: '#d35400', headColor: '#c8855a', hairColor: '#0a0808', pantsColor: '#1a1a18', spawn: [11, 0, -4] as [number, number, number] },
+  { id: 'c1', glbUrl: GLB_POOL[0], bodyColor: '#e74c3c', headColor: '#f0c27f', hairColor: '#3a1808', pantsColor: '#1a1828', spawn: [8,  0,  1] as [number, number, number] },
+  { id: 'c2', glbUrl: GLB_POOL[1], bodyColor: '#27ae60', headColor: '#d4a076', hairColor: '#2a1a08', pantsColor: '#c0a870', spawn: [-8, 0,  2] as [number, number, number] },
+  { id: 'c3', glbUrl: GLB_POOL[0], bodyColor: '#8e44ad', headColor: '#f0c27f', hairColor: '#1a0818', pantsColor: '#1a0a1a', spawn: [10, 0, -2] as [number, number, number] },
+  { id: 'c4', glbUrl: GLB_POOL[1], bodyColor: '#16a085', headColor: '#e8b88a', hairColor: '#5a3010', pantsColor: '#f0e8d8', spawn: [3,  0,  4] as [number, number, number] },
+  { id: 'c5', glbUrl: GLB_POOL[0], bodyColor: '#d35400', headColor: '#c8855a', hairColor: '#0a0808', pantsColor: '#1a1a18', spawn: [11, 0,  2] as [number, number, number] },
 ]
+
+const POOL = { x1: -6, x2: 6, z1: -14.5, z2: -5.5 }
+function isInPool(x: number, z: number) {
+  return x > POOL.x1 && x < POOL.x2 && z > POOL.z1 && z < POOL.z2
+}
 
 const NEED_ICONS: Record<CustomerNeed, string> = {
   drink: '🍹', towel: '🏖️', menu: '📋', happy: '😊', left: '😤',
@@ -59,10 +64,9 @@ function CustomerCharacter({
     if (timer.current > 3 + Math.random() * 4) {
       const angle = Math.random() * Math.PI * 2
       const r = Math.random() * 2.5
-      target.current = {
-        x: def.spawn[0] + Math.cos(angle) * r,
-        z: def.spawn[2] + Math.sin(angle) * r,
-      }
+      const nx = def.spawn[0] + Math.cos(angle) * r
+      const nz = def.spawn[2] + Math.sin(angle) * r
+      if (!isInPool(nx, nz)) target.current = { x: nx, z: nz }
       timer.current = 0
     }
     pos.current.x += (target.current.x - pos.current.x) * 0.015
