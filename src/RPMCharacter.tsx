@@ -1,6 +1,6 @@
 import { useGLTF, useAnimations } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
-import { Component, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
+import { Component, Fragment, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 
@@ -31,11 +31,39 @@ function pickAction(
   return null
 }
 
-class ErrBound extends Component<{ children: ReactNode }, { err: boolean }> {
-  state = { err: false }
+class ErrBound extends Component<
+  { children: ReactNode; url: string },
+  { err: boolean; retry: number }
+> {
+  state = { err: false, retry: 0 }
+  private timer: ReturnType<typeof setTimeout> | null = null
+
   static getDerivedStateFromError() { return { err: true } }
-  componentDidCatch(e: Error) { console.error('[RPMCharacter]', e.message) }
-  render() { return this.state.err ? null : this.props.children }
+
+  componentDidCatch(e: Error) {
+    console.error(`[RPMCharacter] ERRO ao carregar "${this.props.url}":`, e.message)
+    useGLTF.clear(this.props.url)
+    this.timer = setTimeout(() => {
+      console.log(`[RPMCharacter] Tentando novamente: "${this.props.url}"`)
+      this.setState(s => ({ err: false, retry: s.retry + 1 }))
+    }, 4000)
+  }
+
+  componentWillUnmount() {
+    if (this.timer) clearTimeout(this.timer)
+  }
+
+  render() {
+    if (this.state.err) {
+      return (
+        <mesh>
+          <boxGeometry args={[0.4, 1.8, 0.4]} />
+          <meshStandardMaterial color="#ff2222" wireframe />
+        </mesh>
+      )
+    }
+    return <Fragment key={this.state.retry}>{this.props.children}</Fragment>
+  }
 }
 
 export interface RPMCharacterProps {
@@ -176,7 +204,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
 
 export function RPMCharacter(props: RPMCharacterProps) {
   return (
-    <ErrBound>
+    <ErrBound url={props.url}>
       <Suspense fallback={null}>
         <RPMMesh {...props} />
       </Suspense>
