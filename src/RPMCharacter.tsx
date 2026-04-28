@@ -53,10 +53,12 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     const c = SkeletonUtils.clone(scene) as THREE.Object3D
     const tintColor = tint ? new THREE.Color(tint) : null
     c.traverse(obj => {
-      const m = obj as THREE.Mesh
+      const m = obj as THREE.SkinnedMesh
       if (!m.isMesh) return
       m.castShadow = true
       m.receiveShadow = false
+      // Bind-pose bounding sphere is often wrong for animated characters → always visible
+      m.frustumCulled = false
       if (tintColor) {
         const mat = (m.material as THREE.MeshStandardMaterial).clone()
         mat.color.multiply(tintColor)
