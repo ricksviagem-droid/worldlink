@@ -97,7 +97,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
   const idleActionRef = useRef<THREE.AnimationAction | null>(null)
   const walkActionRef = useRef<THREE.AnimationAction | null>(null)
   const hasClipsRef   = useRef(false)
-  const wasMoving     = useRef<boolean | null>(null)
+  const wasMoving     = useRef<boolean>(false)
 
   useEffect(() => {
     if (!hasSkin || animations.length === 0) return
@@ -117,20 +117,25 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     const walkClip = findClip('walk', 'run', 'jog', 'move')
 
     const idleAction = mixer.clipAction(idleClip)
+    idleAction.setLoop(THREE.LoopRepeat, Infinity)
+    idleAction.clampWhenFinished = false
     idleAction.reset().play()
     idleActionRef.current = idleAction
 
-    if (walkClip) walkActionRef.current = mixer.clipAction(walkClip)
+    if (walkClip) {
+      const wa = mixer.clipAction(walkClip)
+      wa.setLoop(THREE.LoopRepeat, Infinity)
+      walkActionRef.current = wa
+    }
     hasClipsRef.current = true
 
     return () => {
       mixer.stopAllAction()
       mixer.uncacheRoot(clone)
-      mixerRef.current    = null
+      mixerRef.current      = null
       idleActionRef.current = null
       walkActionRef.current = null
-      hasClipsRef.current = false
-      wasMoving.current   = null
+      hasClipsRef.current   = false
     }
   }, [animations, clone, hasSkin])
 
@@ -165,14 +170,20 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     const spd = speedBlend.current
 
     const hasClips = hasClipsRef.current
-    if (hasClips && moving !== wasMoving.current) {
-      wasMoving.current = moving
-      if (moving) {
-        idleActionRef.current?.fadeOut(0.3)
-        walkActionRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
-      } else {
-        walkActionRef.current?.fadeOut(0.3)
-        idleActionRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
+    if (hasClips) {
+      if (moving !== wasMoving.current) {
+        wasMoving.current = moving
+        if (moving) {
+          idleActionRef.current?.fadeOut(0.3)
+          walkActionRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
+        } else {
+          walkActionRef.current?.fadeOut(0.3)
+          idleActionRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
+        }
+      }
+      // Safety: restart idle if it stopped unexpectedly
+      if (!moving && idleActionRef.current && !idleActionRef.current.isRunning()) {
+        idleActionRef.current.reset().setLoop(THREE.LoopRepeat, Infinity).play()
       }
     }
 
