@@ -66,17 +66,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
         m.material = mat
       }
     })
-    c.updateMatrixWorld(true)
-    const box = new THREE.Box3()
-    c.traverse(obj => {
-      const m = obj as THREE.Mesh
-      if (!m.isMesh || !m.geometry) return
-      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox()
-      if (m.geometry.boundingBox)
-        box.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld))
-    })
-    const auto = !box.isEmpty() && isFinite(box.min.y) && box.min.y < -0.05 ? -box.min.y : 0
-    return { clone: c, autoYOffset: auto }
+    return { clone: c, autoYOffset: 0 }
   }, [scene, tint])
 
   const { actions } = useAnimations(animations, groupRef)
