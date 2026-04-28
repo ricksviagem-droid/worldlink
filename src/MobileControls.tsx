@@ -100,6 +100,7 @@ export function MobileControls({ onMove, onTalk, nearNpc }: Props) {
           updateMove(t.clientX, t.clientY, touch.ox, touch.oy)
         }}
         onTouchEnd={endMove}
+        onTouchCancel={endMove}
       >
         {/* Active joystick — positioned relative to touch zone using real rect.top */}
         {touch && (

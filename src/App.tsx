@@ -55,13 +55,14 @@ function canMove(x: number, z: number): boolean {
 }
 
 // ─── Camera ─────────────────────────────────────────────────────────────────
-function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }: {
+function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, mobileInputRef }: {
   targetRef: { current: { x: number; z: number } }
   mode: CamMode
   facingRef: React.RefObject<number>
   zoomRef: React.RefObject<number>
   camYawRef: React.RefObject<number>
   velMagRef: { current: number }
+  mobileInputRef: { current: { x: number; z: number } }
 }) {
   const { camera } = useThree()
   const cam = camera as THREE.PerspectiveCamera
@@ -94,9 +95,11 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef }
       return
     }
 
-    // Auto-follow: swing camera behind player whenever moving
-    // Rate matches character TURN_SPD so camera never lags behind rotation
-    if (speed > 0.15) {
+    // Auto-follow: swing camera behind player whenever moving (keyboard only).
+    // Disabled during mobile joystick use to break the feedback loop where
+    // camera yaw rotation changes the joystick world-direction → infinite spin.
+    const joystickActive = Math.abs(mobileInputRef.current.x) > 0.01 || Math.abs(mobileInputRef.current.z) > 0.01
+    if (speed > 0.15 && !joystickActive) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
       while (diff > Math.PI) diff -= Math.PI * 2
@@ -1064,7 +1067,7 @@ export default function App() {
         <pointLight position={[0, 5, 17]} intensity={4} distance={16} color="#ffe8b0" decay={2} />
         <DJLights />
 
-        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} />
+        <CameraRig targetRef={positionRef} mode={camMode} facingRef={facingRef} zoomRef={zoomRef} camYawRef={camYawRef} velMagRef={velMagRef} mobileInputRef={mobileInputRef} />
         <MovementSystem keysRef={keysRef} mobileInputRef={mobileInputRef} velocityRef={velocityRef} positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} camYawRef={camYawRef} setPosition={setPosition} chatOpenRef={chatOpenRef} />
         <BeachClub />
         <ReceptionArea />
