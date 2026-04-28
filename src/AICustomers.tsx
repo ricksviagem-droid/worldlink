@@ -11,8 +11,8 @@ export const PATIENCE_SECONDS = 40
 
 // Alternates between chill guy and anime girl models
 const GLB_POOL = [
-  '/Meshy_AI_Chill_guy_0424232958_texture.glb',
-  '/Meshy_AI_chill_anime_girl_cur_0424233138_texture.glb',
+  '/Soldier.glb',
+  '/Xbot.glb',
 ]
 
 export const CUSTOMER_DEFS = [

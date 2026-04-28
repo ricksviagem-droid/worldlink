@@ -255,7 +255,7 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
   return (
     <group ref={groupRef}>
       <RPMCharacter
-        url={glbUrl ?? '/Meshy_AI_Chill_guy_0424232958_texture.glb'}
+        url={glbUrl ?? '/Soldier.glb'}
         scale={glbScale ?? 1}
         yOffset={glbYOffset ?? 0}
         movingRef={movingRef}
@@ -292,7 +292,7 @@ function RemotePlayer({ targetPosition, bodyColor, headColor, hairColor, pantsCo
   })
   return (
     <group ref={groupRef} position={[targetPosition.x, 0, targetPosition.z]}>
-      <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
+      <RPMCharacter url="/Soldier.glb" scale={1} movingRef={movingRef} />
       <Html position={[0, 2.4, 0]} center distanceFactor={12}>
         <div style={{
           display: 'flex', alignItems: 'center', gap: 5,
