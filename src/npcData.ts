@@ -14,6 +14,9 @@ export interface NpcDef {
   hairColor: string
   pantsColor: string
   position: [number, number, number]
+  glbUrl?: string
+  glbScale?: number
+  glbYOffset?: number
 }
 
 export const NPCS: NpcDef[] = [
@@ -31,6 +34,9 @@ export const NPCS: NpcDef[] = [
     hairColor: '#3a1a08',
     pantsColor: '#1e3a5a',
     position: [0, 0, 6],
+    glbUrl: '/athlete_in_black_and_red_activewear.glb',
+    glbScale: 1.0,
+    glbYOffset: 0,
   },
   {
     id: 'valentina',

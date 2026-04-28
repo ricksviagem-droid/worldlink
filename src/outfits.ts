@@ -18,6 +18,7 @@ export interface PlayerProfile {
   photos?: string[]       // up to 3 photos from device
   nationality?: string  // ISO 3166-1 alpha-2, e.g. 'BR'
   showNameplate?: boolean  // default true; false = invisible mode
+  glbUrl?: string         // Ready Player Me .glb avatar URL or path in /public
 }
 
 export const COUNTRIES: { code: string; name: string }[] = [
