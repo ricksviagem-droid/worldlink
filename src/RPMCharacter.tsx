@@ -105,19 +105,21 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     return found
   }, [clone])
 
-  // Prefer named idle/stand; fall back to gesture clips; skip dance/samba
-  const idleAction = hasSkin
-    ? (pickAction(actions, 'idle', 'stand') ?? pickAction(actions, 'gesture'))
-    : null
-  const walkAction  = hasSkin ? pickAction(actions, 'walk', 'run', 'jog', 'move') : null
-  const hasUsefulClips = !!(idleAction || walkAction)
-  const wasMoving   = useRef<boolean | null>(null)
+  const idleActionRef    = useRef<THREE.AnimationAction | null>(null)
+  const walkActionRef    = useRef<THREE.AnimationAction | null>(null)
+  const hasUsefulClipsRef = useRef(false)
+  const wasMoving        = useRef<boolean | null>(null)
 
   useEffect(() => {
-    if (!hasSkin || !hasUsefulClips) return
-    idleAction?.reset().fadeIn(0.2).play()
+    if (!hasSkin) return
+    const idle = pickAction(actions, 'idle', 'stand') ?? pickAction(actions, 'gesture')
+    const walk = pickAction(actions, 'walk', 'run', 'jog', 'move')
+    idleActionRef.current    = idle
+    walkActionRef.current    = walk
+    hasUsefulClipsRef.current = !!(idle || walk)
+    if (idle) idle.reset().fadeIn(0.2).play()
     return () => { Object.values(actions).forEach(a => a?.stop()) }
-  }, [actions, hasSkin, hasUsefulClips, idleAction])
+  }, [actions, hasSkin])
 
   const bones = useMemo(() => {
     if (!hasSkin) return {}
@@ -129,7 +131,6 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     return b
   }, [clone, hasSkin])
   const hasRig = Object.keys(bones).length >= 4
-  const useProceduralBones = hasSkin && hasRig && !hasUsefulClips
 
   const walkT      = useRef(Math.random() * Math.PI * 2)
   const breathT    = useRef(Math.random() * Math.PI * 2)
@@ -148,20 +149,21 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     speedBlend.current += ((moving ? 1 : 0) - speedBlend.current) * Math.min(1, 8 * delta)
     const spd = speedBlend.current
 
-    if (hasUsefulClips && moving !== wasMoving.current) {
+    const hasClips = hasUsefulClipsRef.current
+    if (hasClips && moving !== wasMoving.current) {
       wasMoving.current = moving
       if (moving) {
-        idleAction?.fadeOut(0.3)
-        walkAction?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
+        idleActionRef.current?.fadeOut(0.3)
+        walkActionRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
       } else {
-        walkAction?.fadeOut(0.3)
-        idleAction?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
+        walkActionRef.current?.fadeOut(0.3)
+        idleActionRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
       }
     }
 
     if (groupRef.current) {
       const g = groupRef.current
-      const enhance   = hasUsefulClips ? 0.35 : 1.0
+      const enhance   = hasClips ? 0.35 : 1.0
       const bounce    = Math.abs(Math.sin(walkT.current)) * 0.08 * spd
       const sideTilt  = Math.sin(walkT.current) * 0.06 * spd
       const fwdLean   = spd * 0.09
@@ -174,7 +176,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
       g.rotation.y += (0 - g.rotation.y) * 0.1
     }
 
-    if (!useProceduralBones) return
+    if (!hasSkin || !hasRig || hasUsefulClipsRef.current) return
     const swing    = moving ? Math.sin(walkT.current) * 0.42 : 0
     const boneSway = !moving ? Math.sin(breathT.current * 0.7) * 0.018 : 0
     const breathZ  = Math.sin(breathT.current) * 0.006
