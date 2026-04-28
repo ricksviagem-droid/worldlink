@@ -76,7 +76,9 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
 
   // ── AnimationMixer (for GLBs that have clips) ─────────────────────────────
   const { actions } = useAnimations(animations, groupRef)
-  const hasClips = animations.length > 0
+  // Only use clip-driven animation when recognizable idle/walk clips exist.
+  // Models with unrelated clips (e.g. gesture_1 from Avaturn) fall back to procedural bones.
+  const hasClips = !!(pickClip(actions, 'idle', 'stand', 'tpose') || pickClip(actions, 'walk', 'run', 'jog', 'move'))
   const wasMoving = useRef<boolean | null>(null)
 
   useEffect(() => {

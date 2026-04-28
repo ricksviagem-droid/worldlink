@@ -35,8 +35,8 @@ export const NPCS: NpcDef[] = [
     hairColor: '#3a1a08',
     pantsColor: '#1e3a5a',
     position: [0, 0, 6],
-    glbUrl: '/Soldier.glb',
-    glbScale: 1.08,
+    glbUrl: '/model.glb',
+    glbScale: 1.0,
     glbYOffset: 0,
   },
   {
