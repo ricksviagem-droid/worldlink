@@ -9,6 +9,7 @@ import { MobileControls } from './MobileControls'
 import { NPCS, TALK_DISTANCE, type NpcDef } from './npcData'
 import { audio } from './audio'
 import { CharacterMesh } from './CharacterMesh'
+import { RPMCharacter } from './RPMCharacter'
 import { AICustomers, CUSTOMER_DEFS, SERVE_DISTANCE, type CustomerNeed } from './AICustomers'
 import { MissionPanel } from './MissionPanel'
 import { CustomerChat } from './CustomerChat'
@@ -224,11 +225,12 @@ function MovementSystem({
 }
 
 // ─── Players ─────────────────────────────────────────────────────────────────
-function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor, facingRef, velMagRef }: {
+function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor, facingRef, velMagRef, glbUrl, glbScale, glbYOffset }: {
   positionRef: { current: { x: number; z: number } }
   facingRef: { current: number }
   velMagRef: { current: number }
   bodyColor: string; headColor: string; hairColor?: string; pantsColor?: string
+  glbUrl?: string; glbScale?: number; glbYOffset?: number
 }) {
   const groupRef  = useRef<THREE.Group>(null)
   const movingRef = useRef(false)
@@ -249,7 +251,10 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
 
   return (
     <group ref={groupRef}>
-      <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
+      {glbUrl
+        ? <RPMCharacter url={glbUrl} scale={glbScale ?? 1} yOffset={glbYOffset ?? 0} movingRef={movingRef} />
+        : <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
+      }
     </group>
   )
 }
@@ -341,7 +346,10 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
 
   return (
     <group ref={groupRef} position={npc.position}>
-      <CharacterMesh bodyColor={npc.bodyColor} headColor={npc.headColor} hairColor={npc.hairColor} pantsColor={npc.pantsColor} movingRef={movingRef} />
+      {npc.glbUrl
+        ? <RPMCharacter url={npc.glbUrl} scale={npc.glbScale ?? 1} yOffset={npc.glbYOffset ?? 0} movingRef={movingRef} />
+        : <CharacterMesh bodyColor={npc.bodyColor} headColor={npc.headColor} hairColor={npc.hairColor} pantsColor={npc.pantsColor} movingRef={movingRef} />
+      }
       <Html position={[0, 2.2, 0]} center distanceFactor={12}>
         <div style={{
           background: nearby ? 'rgba(243,156,18,0.9)' : 'rgba(0,0,0,0.65)',
@@ -1069,7 +1077,7 @@ export default function App() {
           missionActive={shiftPhase === 'active'}
           onPatienceOut={handlePatienceOut}
         />
-        {camMode !== 'pov' && <LocalPlayer positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} hairColor={myOutfit.hairColor} pantsColor={myOutfit.pantsColor} />}
+        {camMode !== 'pov' && <LocalPlayer positionRef={positionRef} facingRef={facingRef} velMagRef={velMagRef} bodyColor={myOutfit.bodyColor} headColor={myOutfit.headColor} hairColor={myOutfit.hairColor} pantsColor={myOutfit.pantsColor} glbUrl={myProfile?.glbUrl} />}
         {Object.entries(players).map(([id, player]) => {
           if (id === myId.current) return null
           const rProfile = remoteProfiles[id]
