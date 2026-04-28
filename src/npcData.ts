@@ -35,7 +35,7 @@ export const NPCS: NpcDef[] = [
     hairColor: '#3a1a08',
     pantsColor: '#1e3a5a',
     position: [0, 0, 6],
-    glbUrl: '/Meshy_AI_Chill_guy_0424232958_texture.glb',
+    glbUrl: 'https://threejs.org/examples/models/gltf/Soldier.glb',
     glbScale: 1.08,
     glbYOffset: 0,
   },
