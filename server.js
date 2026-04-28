@@ -220,7 +220,7 @@ Reply in this exact JSON format:
   }
 })
 
-
+app.post('/api/tts', async (req, res) => {
   const { text, npcId } = req.body
   if (!openai) return res.status(503).json({ error: 'No API key' })
   try {
