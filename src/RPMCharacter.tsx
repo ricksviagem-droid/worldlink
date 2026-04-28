@@ -1,4 +1,4 @@
-import { useGLTF } from '@react-three/drei'
+import { useGLTF, useAnimations } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { Component, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
@@ -21,10 +21,14 @@ function findBone(root: THREE.Object3D, names: string[]): THREE.Bone | null {
   return found
 }
 
-function findClip(clips: THREE.AnimationClip[], ...keys: string[]) {
+// Pick the first action whose name contains any of the given keywords
+function pickAction(
+  actions: ReturnType<typeof useAnimations>['actions'],
+  ...keys: string[]
+): THREE.AnimationAction | null {
   for (const k of keys)
-    for (const c of clips)
-      if (c.name.toLowerCase().includes(k.toLowerCase())) return c
+    for (const name of Object.keys(actions))
+      if (name.toLowerCase().includes(k.toLowerCase())) return actions[name] ?? null
   return null
 }
 
@@ -76,54 +80,33 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     return { clone: c, autoYOffset: auto }
   }, [scene, tint])
 
-  // Detect skeleton
+  // useAnimations creates the mixer on groupRef and resolves tracks within groupRef's subtree
+  // (clone is a child of groupRef, so bones are reachable)
+  const { actions } = useAnimations(animations, groupRef)
+
+  // Detect skeleton for animation gating
   const hasSkin = useMemo(() => {
     let found = false
     clone.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) found = true })
     return found
   }, [clone])
 
-  // Decide which clip to play as idle.
-  // - Match named idle/stand clips first.
-  // - Fall back to any clip that isn't a gesture/dance (so Soldier "Idle", Xbot "idle" etc. work).
-  // - Do NOT fall back to gesture/dance clips (avoids Rick dancing).
-  const idleClipName = useMemo(() => {
-    if (!animations.length) return null
-    const named = findClip(animations, 'idle', 'stand', 'tpose')
-    if (named) return named.name
-    const fallback = animations.find(a => !/(gesture|dance|wave|pose)/i.test(a.name))
-    return fallback?.name ?? null
-  }, [animations])
-
-  const walkClipName = useMemo(() => {
-    const c = findClip(animations, 'walk', 'run', 'jog', 'move')
-    return c?.name ?? null
-  }, [animations])
-
-  // AnimationMixer attached directly to the clone
-  const mixerRef  = useRef<THREE.AnimationMixer | null>(null)
-  const idleRef   = useRef<THREE.AnimationAction | null>(null)
-  const walkRef   = useRef<THREE.AnimationAction | null>(null)
-  const wasMoving = useRef<boolean | null>(null)
+  // Determine which animations to use:
+  // - Recognized idle clips (idle/stand/tpose) play as idle
+  // - Walk/run clips play when moving
+  // - gesture/dance/wave/pose clips are intentionally NOT auto-played (not natural idle)
+  const idleAction  = hasSkin ? pickAction(actions, 'idle', 'stand', 'tpose') : null
+  const walkAction  = hasSkin ? pickAction(actions, 'walk', 'run', 'jog', 'move') : null
+  const hasUsefulClips = !!(idleAction || walkAction)
+  const wasMoving   = useRef<boolean | null>(null)
 
   useEffect(() => {
-    if (!hasSkin || !animations.length) return
-    const mixer = new THREE.AnimationMixer(clone)
-    mixerRef.current = mixer
+    if (!hasSkin || !hasUsefulClips) return
+    idleAction?.reset().fadeIn(0.2).play()
+    return () => { Object.values(actions).forEach(a => a?.stop()) }
+  }, [actions, hasSkin, hasUsefulClips, idleAction])
 
-    if (idleClipName) {
-      const clip = animations.find(a => a.name === idleClipName)
-      if (clip) { idleRef.current = mixer.clipAction(clip); idleRef.current.reset().play() }
-    }
-    if (walkClipName) {
-      const clip = animations.find(a => a.name === walkClipName)
-      if (clip) { walkRef.current = mixer.clipAction(clip); walkRef.current.enabled = false }
-    }
-
-    return () => { mixer.stopAllAction(); mixerRef.current = null; idleRef.current = null; walkRef.current = null }
-  }, [clone, animations, hasSkin, idleClipName, walkClipName])
-
-  // Bone refs for procedural animation (models with skeleton but no good idle clip)
+  // Bone refs for procedural animation (skeleton present but no good clips)
   const bones = useMemo(() => {
     if (!hasSkin) return {}
     const b: Partial<Record<keyof typeof BONE_VARIANTS, THREE.Bone>> = {}
@@ -134,8 +117,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     return b
   }, [clone, hasSkin])
   const hasRig = Object.keys(bones).length >= 4
-  // Run procedural animation when: has rig, has no recognized idle clip to play
-  const useProceduralBones = hasRig && !idleClipName
+  const useProceduralBones = hasSkin && hasRig && !hasUsefulClips
 
   const walkT      = useRef(Math.random() * Math.PI * 2)
   const breathT    = useRef(Math.random() * Math.PI * 2)
@@ -148,39 +130,33 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     const moving  = movingRef?.current ?? false
     const talking = talkingRef?.current ?? false
 
-    mixerRef.current?.update(delta)
-
     breathT.current += delta * 1.1
     if (moving) walkT.current += delta * 8.0
     if (talking) talkT.current += delta * 3.5
     speedBlend.current += ((moving ? 1 : 0) - speedBlend.current) * Math.min(1, 8 * delta)
     const spd = speedBlend.current
 
-    // Crossfade idle ↔ walk when walk clip exists
-    const hasWalkClip = !!walkRef.current
-    if (hasWalkClip && moving !== wasMoving.current) {
+    // Crossfade idle ↔ walk
+    if (hasUsefulClips && moving !== wasMoving.current) {
       wasMoving.current = moving
-      const idle = idleRef.current
-      const walk = walkRef.current!
       if (moving) {
-        idle?.fadeOut(0.3)
-        walk.reset().setEffectiveWeight(1).fadeIn(0.3).play()
+        idleAction?.fadeOut(0.3)
+        walkAction?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
       } else {
-        walk.fadeOut(0.3)
-        idle?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
+        walkAction?.fadeOut(0.3)
+        idleAction?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
       }
     }
 
-    // Whole-body group sway/bounce
+    // Whole-body group motion
     if (groupRef.current) {
       const g = groupRef.current
-      const hasClips   = !!idleRef.current
-      const enhance    = hasClips ? 0.35 : 1.0
-      const bounce     = Math.abs(Math.sin(walkT.current)) * 0.08 * spd
-      const sideTilt   = Math.sin(walkT.current) * 0.06 * spd
-      const fwdLean    = spd * 0.09
-      const groupSway  = Math.sin(breathT.current * 0.7) * 0.016 * (1 - spd)
-      const talkNod    = talking ? Math.sin(talkT.current) * 0.025 : 0
+      const enhance   = hasUsefulClips ? 0.35 : 1.0
+      const bounce    = Math.abs(Math.sin(walkT.current)) * 0.08 * spd
+      const sideTilt  = Math.sin(walkT.current) * 0.06 * spd
+      const fwdLean   = spd * 0.09
+      const groupSway = Math.sin(breathT.current * 0.7) * 0.016 * (1 - spd)
+      const talkNod   = talking ? Math.sin(talkT.current) * 0.025 : 0
 
       g.position.y = autoYOffset + yOffset + bounce * enhance
       g.rotation.x = (-fwdLean + talkNod) * enhance
@@ -191,7 +167,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
         g.rotation.y += (0 - g.rotation.y) * 0.1
     }
 
-    // Procedural bone animation (only for rigged models without a recognized idle clip)
+    // Procedural bone animation for rigged models without recognized clips
     if (!useProceduralBones) return
     const swing    = moving ? Math.sin(walkT.current) * 0.42 : 0
     const boneSway = !moving ? Math.sin(breathT.current * 0.7) * 0.018 : 0
