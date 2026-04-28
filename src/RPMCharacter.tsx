@@ -6,7 +6,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 class ErrBound extends Component<{ children: ReactNode }, { err: boolean }> {
   state = { err: false }
   static getDerivedStateFromError() { return { err: true } }
-  componentDidCatch(e: Error) { console.error('[RPMCharacter]', e.message) }
+  componentDidCatch(e: Error) { console.error('[RPMCharacter]', e.message, e.stack) }
   render() { return this.state.err ? null : this.props.children }
 }
 
@@ -24,10 +24,14 @@ function RPMMesh({ url, scale = 1, yOffset = 0, movingRef }: RPMCharacterProps) 
   const groupRef = useRef<THREE.Group>(null)
 
   const clone = useMemo(() => {
-    const c = SkeletonUtils.clone(scene) as THREE.Object3D
+    let c: THREE.Object3D
+    try {
+      c = SkeletonUtils.clone(scene) as THREE.Object3D
+    } catch {
+      c = scene.clone(true)
+    }
     c.traverse(o => {
-      const m = o as THREE.Mesh
-      if (m.isMesh) { m.castShadow = true; m.frustumCulled = false }
+      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).frustumCulled = false
     })
     return c
   }, [scene])
@@ -43,41 +47,31 @@ function RPMMesh({ url, scale = 1, yOffset = 0, movingRef }: RPMCharacterProps) 
     const SKIP  = ['dance', 'samba', 'tpose']
     const WALK  = ['walk', 'run', 'jog']
 
-    const idleName = names.find(n => n.toLowerCase().includes('idle'))
-                  ?? names.find(n =>
-                       !SKIP.some(s => n.toLowerCase().includes(s)) &&
-                       !WALK.some(s => n.toLowerCase().includes(s))
-                     )
+    const idleName = names.find(n => /idle/i.test(n))
+                  ?? names.find(n => !SKIP.some(s => n.toLowerCase().includes(s)) && !WALK.some(s => n.toLowerCase().includes(s)))
     const walkName = names.find(n => WALK.some(s => n.toLowerCase().includes(s)))
 
     const idle = idleName ? (actions[idleName] ?? null) : null
     const walk = walkName ? (actions[walkName] ?? null) : null
-
     idleRef.current = idle
     walkRef.current = walk
     wasMoving.current = null
-
     if (idle) idle.reset().play()
-
     return () => names.forEach(n => actions[n]?.stop())
   }, [actions])
 
-  // Crossfade idle ↔ walk when movingRef changes
   useEffect(() => {
     if (!movingRef) return
-    const interval = setInterval(() => {
-      const moving = movingRef.current ?? false
-      if (moving === wasMoving.current) return
-      wasMoving.current = moving
-      if (moving) {
-        idleRef.current?.fadeOut(0.3)
-        walkRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
-      } else {
-        walkRef.current?.fadeOut(0.3)
-        idleRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play()
-      }
+    let last: boolean | null = null
+    const id = setInterval(() => {
+      const m = movingRef.current ?? false
+      if (m === last) return
+      last = m
+      wasMoving.current = m
+      if (m) { idleRef.current?.fadeOut(0.3); walkRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play() }
+      else   { walkRef.current?.fadeOut(0.3); idleRef.current?.reset().setEffectiveWeight(1).fadeIn(0.3).play() }
     }, 100)
-    return () => clearInterval(interval)
+    return () => clearInterval(id)
   }, [movingRef])
 
   return (
