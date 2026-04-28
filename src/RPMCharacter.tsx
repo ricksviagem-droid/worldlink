@@ -107,18 +107,24 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     return () => { mixer.stopAllAction(); mixerRef.current = null }
   }, [clone, animations])
 
-  // ── Bone refs for procedural animation (models without usable clips) ──────
+  // ── Detect skeleton: only animate models that have SkinnedMesh ───────────
+  const hasSkin = useMemo(() => {
+    let found = false
+    clone.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) found = true })
+    return found
+  }, [clone])
+
+  // ── Bone refs for procedural animation (rigged models without clips) ──────
   const bones = useMemo(() => {
+    if (!hasSkin) return {}
     const b: Partial<Record<keyof typeof BONE_VARIANTS, THREE.Bone>> = {}
     for (const [key, names] of Object.entries(BONE_VARIANTS)) {
       const bone = findBone(clone, names)
       if (bone) b[key as keyof typeof BONE_VARIANTS] = bone
     }
     return b
-  }, [clone])
+  }, [clone, hasSkin])
   const hasRig = Object.keys(bones).length >= 4
-  // Use procedural bones only when no recognized idle/walk clips exist
-  const hasUsefulClips = !!(findClip(animations, 'idle', 'stand', 'tpose', 'gesture', 'pose', 'wave', 'dance', 'walk', 'run', 'jog', 'move') || animations[0])
 
   // ── Timers ────────────────────────────────────────────────────────────────
   const walkT      = useRef(Math.random() * Math.PI * 2)
@@ -127,6 +133,9 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
   const speedBlend = useRef(0)
 
   useFrame((_, delta) => {
+    // No skeleton → no animation at all, leave the static mesh as-is
+    if (!hasSkin) return
+
     const moving  = movingRef?.current ?? false
     const talking = talkingRef?.current ?? false
 
@@ -154,7 +163,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
       }
     }
 
-    // ── Whole-body group animation ────────────────────────────────────────
+    // ── Whole-body group animation (subtle enhancement on top of clips) ────
     if (groupRef.current) {
       const g = groupRef.current
       const bounce   = Math.abs(Math.sin(walkT.current)) * 0.08 * spd
@@ -163,7 +172,8 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
       const idleSway = Math.sin(breathT.current * 0.7) * 0.016 * (1 - spd)
       const talkNod  = talking ? Math.sin(talkT.current) * 0.025 : 0
 
-      const enhance = hasUsefulClips ? 0.35 : 1.0
+      // When clips are playing, only add subtle motion on top
+      const enhance = hasClips ? 0.35 : 1.0
       g.position.y = autoYOffset + yOffset + bounce * enhance
       g.rotation.x = (-fwdLean + talkNod) * enhance
       g.rotation.z = (sideTilt + idleSway) * enhance
