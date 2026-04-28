@@ -18,6 +18,7 @@ export interface NpcDef {
   glbScale?: number
   glbYOffset?: number
   glbTint?: string
+  glbFacingOffset?: number
 }
 
 export const NPCS: NpcDef[] = [
@@ -38,6 +39,7 @@ export const NPCS: NpcDef[] = [
     glbUrl: '/model.glb',
     glbScale: 1.0,
     glbYOffset: 0,
+    glbFacingOffset: Math.PI,
   },
   {
     id: 'valentina',

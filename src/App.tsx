@@ -244,7 +244,9 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
     groupRef.current.position.x = positionRef.current.x
     groupRef.current.position.z = positionRef.current.z
     movingRef.current = velMagRef.current > 0.5
-    const target = Math.PI - facingRef.current
+    // Mixamo exports face +Z so need π rotation offset; Avaturn/RPM face -Z so need no offset
+    const isMixamo = !glbUrl || /Soldier|Xbot|Ybot|Michelle/i.test(glbUrl)
+    const target = (isMixamo ? Math.PI : 0) - facingRef.current
     let diff = target - smoothRot.current
     while (diff > Math.PI) diff -= Math.PI * 2
     while (diff < -Math.PI) diff += Math.PI * 2
@@ -339,7 +341,7 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
     const dz = target.current.z - pos.current.z
     movingRef.current = Math.abs(dx) + Math.abs(dz) > 0.005
     if (movingRef.current) {
-      const targetRot = Math.atan2(dx, dz)
+      const targetRot = Math.atan2(dx, dz) + (npc.glbFacingOffset ?? 0)
       let rotDiff = targetRot - groupRef.current.rotation.y
       while (rotDiff > Math.PI) rotDiff -= Math.PI * 2
       while (rotDiff < -Math.PI) rotDiff += Math.PI * 2

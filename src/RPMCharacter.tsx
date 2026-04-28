@@ -82,7 +82,11 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
   const mixerRef   = useRef<THREE.AnimationMixer | null>(null)
   const idleRef    = useRef<THREE.AnimationAction | null>(null)
   const walkRef    = useRef<THREE.AnimationAction | null>(null)
-  const hasClips   = animations.length > 0
+  const hasClips      = animations.length > 0
+  const hasUsefulClips = !!(
+    findClip(animations, 'idle', 'stand', 'tpose') ||
+    findClip(animations, 'walk', 'run', 'jog', 'move')
+  )
   const wasMoving  = useRef<boolean | null>(null)
 
   useEffect(() => {
@@ -90,9 +94,8 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     const mixer = new THREE.AnimationMixer(clone)
     mixerRef.current = mixer
 
+    // Only play clearly-named idle clips — skip gesture/dance clips
     const idleClip = findClip(animations, 'idle', 'stand', 'tpose')
-                  ?? findClip(animations, 'gesture', 'pose', 'wave', 'dance')
-                  ?? animations[0]           // fallback: first clip (e.g. gesture_1 on Avaturn)
     const walkClip = findClip(animations, 'walk', 'run', 'jog', 'move')
 
     if (idleClip) {
@@ -191,8 +194,14 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     const lr       = 0.18
     if (bones.leftUpLeg)  bones.leftUpLeg.rotation.x  += ( swing * 0.65 - bones.leftUpLeg.rotation.x)  * lr
     if (bones.rightUpLeg) bones.rightUpLeg.rotation.x += (-swing * 0.65 - bones.rightUpLeg.rotation.x) * lr
-    if (bones.leftArm)    bones.leftArm.rotation.x    += (-swing * 0.28 + idleSway * 0.5 - bones.leftArm.rotation.x) * lr
-    if (bones.rightArm)   bones.rightArm.rotation.x   += ( swing * 0.28 - idleSway * 0.5 - bones.rightArm.rotation.x) * lr
+    if (bones.leftArm) {
+      bones.leftArm.rotation.x += (-swing * 0.28 + idleSway * 0.5 - bones.leftArm.rotation.x) * lr
+      bones.leftArm.rotation.z += (-0.35 - bones.leftArm.rotation.z) * lr * 0.5
+    }
+    if (bones.rightArm) {
+      bones.rightArm.rotation.x += ( swing * 0.28 - idleSway * 0.5 - bones.rightArm.rotation.x) * lr
+      bones.rightArm.rotation.z += ( 0.35 - bones.rightArm.rotation.z) * lr * 0.5
+    }
     if (bones.spine2) {
       bones.spine2.rotation.y += (Math.sin(walkT.current * 0.5) * (moving ? 0.04 : 0) + idleSway * 0.6 - bones.spine2.rotation.y) * lr * 0.4
       bones.spine2.rotation.z += (breathZ - bones.spine2.rotation.z) * lr * 0.3
