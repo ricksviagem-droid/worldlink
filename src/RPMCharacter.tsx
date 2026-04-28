@@ -55,9 +55,20 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
         }
       }
     })
-    // Auto-lift so feet sit exactly on y=0 regardless of model pivot placement
-    const box = new THREE.Box3().setFromObject(c)
-    const auto = isFinite(box.min.y) ? -box.min.y : 0
+    // Auto-lift based on MESH geometry only (bones/helpers inflate Box3.setFromObject)
+    c.updateMatrixWorld(true)
+    const box = new THREE.Box3()
+    c.traverse(obj => {
+      const mesh = obj as THREE.Mesh
+      if (!mesh.isMesh || !mesh.geometry) return
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox()
+      if (mesh.geometry.boundingBox) {
+        box.union(mesh.geometry.boundingBox.clone().applyMatrix4(mesh.matrixWorld))
+      }
+    })
+    const auto = !box.isEmpty() && isFinite(box.min.y) && box.min.y < -0.05
+      ? -box.min.y
+      : 0
     return { clone: c, autoYOffset: auto }
   }, [scene, tint])
 
