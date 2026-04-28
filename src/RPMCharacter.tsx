@@ -91,12 +91,22 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     return found
   }, [clone])
 
-  // Determine which animations to use:
-  // - Recognized idle clips (idle/stand/tpose) play as idle
-  // - Walk/run clips play when moving
-  // - gesture/dance/wave/pose clips are intentionally NOT auto-played (not natural idle)
-  const idleAction  = hasSkin ? pickAction(actions, 'idle', 'stand', 'tpose') : null
-  const walkAction  = hasSkin ? pickAction(actions, 'walk', 'run', 'jog', 'move') : null
+  // Walk/run clips for locomotion crossfade
+  const walkAction = hasSkin ? pickAction(actions, 'walk', 'run', 'jog', 'move') : null
+  // Idle: prefer a clip named idle/stand, then fall back to ANY clip that isn't
+  // locomotion, dance, or T-pose (this picks gesture_1 and similar native clips)
+  const SKIP_IDLE = ['walk', 'run', 'jog', 'dance', 'samba', 'tpose']
+  let idleAction: THREE.AnimationAction | null = hasSkin
+    ? pickAction(actions, 'idle', 'stand')
+    : null
+  if (!idleAction && hasSkin) {
+    for (const name of Object.keys(actions)) {
+      if (!SKIP_IDLE.some(s => name.toLowerCase().includes(s))) {
+        idleAction = actions[name] ?? null
+        break
+      }
+    }
+  }
   const hasUsefulClips = !!(idleAction || walkAction)
   const wasMoving   = useRef<boolean | null>(null)
 
@@ -175,14 +185,10 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     const lr       = 0.18
     if (bones.leftUpLeg)  bones.leftUpLeg.rotation.x  += ( swing * 0.65 - bones.leftUpLeg.rotation.x)  * lr
     if (bones.rightUpLeg) bones.rightUpLeg.rotation.x += (-swing * 0.65 - bones.rightUpLeg.rotation.x) * lr
-    if (bones.leftArm) {
+    if (bones.leftArm)
       bones.leftArm.rotation.x += (-swing * 0.28 + boneSway * 0.5 - bones.leftArm.rotation.x) * lr
-      bones.leftArm.rotation.z += (-1.4 - bones.leftArm.rotation.z) * lr * 0.8
-    }
-    if (bones.rightArm) {
+    if (bones.rightArm)
       bones.rightArm.rotation.x += ( swing * 0.28 - boneSway * 0.5 - bones.rightArm.rotation.x) * lr
-      bones.rightArm.rotation.z += ( 1.4 - bones.rightArm.rotation.z) * lr * 0.8
-    }
     if (bones.spine2) {
       bones.spine2.rotation.y += (Math.sin(walkT.current * 0.5) * (moving ? 0.04 : 0) + boneSway * 0.6 - bones.spine2.rotation.y) * lr * 0.4
       bones.spine2.rotation.z += (breathZ - bones.spine2.rotation.z) * lr * 0.3
