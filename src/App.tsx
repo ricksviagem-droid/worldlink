@@ -173,7 +173,7 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 3.2, ACCEL = 10, DECEL = 22, TURN_SPD = Math.PI * 2.2
+    const MAX_SPEED = 5.0, ACCEL = 16, DECEL = 22, TURN_SPD = Math.PI * 3.0
 
     // Raw screen-space input (up = -iz, right = +ix)
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
