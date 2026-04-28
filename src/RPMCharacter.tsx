@@ -176,6 +176,12 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
   )
 }
 
+// Preload all character models so they start downloading immediately on page load
+useGLTF.preload('/model.glb')
+useGLTF.preload('/Michelle.glb')
+useGLTF.preload('/Xbot.glb')
+useGLTF.preload('/Soldier.glb')
+
 export function RPMCharacter(props: RPMCharacterProps) {
   return (
     <ErrBound>
