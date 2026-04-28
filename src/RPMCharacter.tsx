@@ -78,22 +78,31 @@ function RPMMesh({ url, scale = 1, yOffset = 0, movingRef, talkingRef }: RPMChar
 
     if (!hasRig) return  // unrigged model: parent group handles float
 
-    const swing   = moving ? Math.sin(walkT.current) * 0.42 : 0
-    const breathZ = Math.sin(breathT.current) * 0.004
-    const talkNod = talking ? Math.sin(talkT.current) * 0.03 : 0
-    const lr      = 0.18
+    const swing    = moving ? Math.sin(walkT.current) * 0.42 : 0
+    const idleSway = !moving ? Math.sin(breathT.current * 0.7) * 0.018 : 0
+    const breathZ  = Math.sin(breathT.current) * 0.006
+    const talkNod  = talking ? Math.sin(talkT.current) * 0.035 : 0
+    const lr       = 0.18
 
     if (bones.leftUpLeg)  bones.leftUpLeg.rotation.x  += ( swing * 0.65 - bones.leftUpLeg.rotation.x)  * lr
     if (bones.rightUpLeg) bones.rightUpLeg.rotation.x += (-swing * 0.65 - bones.rightUpLeg.rotation.x) * lr
-    if (bones.leftArm)    bones.leftArm.rotation.x    += (-swing * 0.28 - bones.leftArm.rotation.x)    * lr
-    if (bones.rightArm)   bones.rightArm.rotation.x   += ( swing * 0.28 - bones.rightArm.rotation.x)   * lr
+    if (bones.leftArm) {
+      bones.leftArm.rotation.x += (-swing * 0.28 + idleSway * 0.5 - bones.leftArm.rotation.x) * lr
+      bones.leftArm.rotation.z += (0.12 - bones.leftArm.rotation.z) * lr * 0.1
+    }
+    if (bones.rightArm) {
+      bones.rightArm.rotation.x += ( swing * 0.28 - idleSway * 0.5 - bones.rightArm.rotation.x) * lr
+      bones.rightArm.rotation.z += (-0.12 - bones.rightArm.rotation.z) * lr * 0.1
+    }
     if (bones.spine2) {
-      bones.spine2.rotation.y += (Math.sin(walkT.current * 0.5) * (moving ? 0.04 : 0) - bones.spine2.rotation.y) * lr * 0.4
+      bones.spine2.rotation.y += (Math.sin(walkT.current * 0.5) * (moving ? 0.04 : 0) + idleSway * 0.6 - bones.spine2.rotation.y) * lr * 0.4
       bones.spine2.rotation.z += (breathZ - bones.spine2.rotation.z) * lr * 0.3
     }
     if (bones.head) {
-      const bob = moving ? Math.abs(Math.sin(walkT.current)) * 0.012 : 0
+      const bob = moving ? Math.abs(Math.sin(walkT.current)) * 0.014 : Math.sin(breathT.current * 0.5) * 0.008
       bones.head.rotation.x += (talkNod + bob - bones.head.rotation.x) * 0.14
+      if (!moving && !talking)
+        bones.head.rotation.y += (Math.sin(breathT.current * 0.22) * 0.12 - bones.head.rotation.y) * 0.04
     }
   })
 

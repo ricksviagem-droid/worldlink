@@ -853,14 +853,18 @@ function ChillGuyMesh({ position, rotation = 0, phase = 0 }: {
   const { scene } = useGLTF('/Meshy_AI_Chill_guy_0424232958_texture.glb')
   const cloned    = useMemo(() => scene.clone(true), [scene])
   const groupRef  = useRef<THREE.Group>(null)
-  // Meshy AI characters are centered at Y=0 — lift by 0.9 so feet touch ground
   const baseY     = position[1] + 0.9
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
-    const t = clock.elapsedTime + phase
-    groupRef.current.position.y = baseY + Math.sin(t * 1.1) * 0.007
-    groupRef.current.rotation.y = rotation + Math.sin(t * 0.4) * 0.06
+    const t  = clock.elapsedTime + phase
+    const t2 = t * 0.72 + 1.3
+    const t3 = t * 1.9  + 0.5
+    // Chill dance: weight shift + head bob
+    groupRef.current.position.y = baseY + Math.abs(Math.sin(t3)) * 0.030 - 0.008
+    groupRef.current.rotation.y = rotation + Math.sin(t * 0.38) * 0.18
+    groupRef.current.rotation.z = Math.sin(t * 0.85) * 0.045
+    groupRef.current.rotation.x = Math.sin(t2) * 0.022
   })
   return (
     <group ref={groupRef} position={[position[0], baseY, position[2]]} rotation={[0, rotation, 0]} scale={1.0}>
@@ -882,9 +886,14 @@ function AnimeGirlMesh({ position, rotation = 0, phase = 0 }: {
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
-    const t = clock.elapsedTime + phase
-    groupRef.current.position.y = baseY + Math.sin(t * 1.3) * 0.006
-    groupRef.current.rotation.y = rotation + Math.sin(t * 0.5 + 0.8) * 0.05
+    const t  = clock.elapsedTime + phase
+    const t2 = t * 0.65 + 2.1
+    const t3 = t * 2.1  + 1.0
+    // Graceful sway: softer, more fluid
+    groupRef.current.position.y = baseY + Math.abs(Math.sin(t3)) * 0.024 - 0.006
+    groupRef.current.rotation.y = rotation + Math.sin(t * 0.42 + 0.8) * 0.14
+    groupRef.current.rotation.z = Math.sin(t2) * 0.038
+    groupRef.current.rotation.x = Math.sin(t * 0.55 + 1.6) * 0.018
   })
   return (
     <group ref={groupRef} position={[position[0], baseY, position[2]]} rotation={[0, rotation, 0]} scale={1.0}>
@@ -902,14 +911,15 @@ function ChihuahuaMesh({ position, rotation = 0, phase = 0 }: {
   const { scene } = useGLTF('/Meshy_AI_Chill_Chihuahua_0424232815_texture.glb')
   const cloned    = useMemo(() => scene.clone(true), [scene])
   const groupRef  = useRef<THREE.Group>(null)
-  // Chihuahua smaller — center lift ~0.15
   const baseY     = position[1] + 0.15
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.elapsedTime + phase
-    groupRef.current.rotation.y = rotation + Math.sin(t * 2.2) * 0.12
-    groupRef.current.position.y = baseY + Math.abs(Math.sin(t * 3.5)) * 0.010
+    // Excited dog: faster wag + happy bounce
+    groupRef.current.rotation.y = rotation + Math.sin(t * 3.2) * 0.22
+    groupRef.current.position.y = baseY + Math.abs(Math.sin(t * 4.5)) * 0.018
+    groupRef.current.rotation.x = Math.sin(t * 2.8) * 0.06
   })
   return (
     <group ref={groupRef} position={[position[0], baseY, position[2]]} rotation={[0, rotation, 0]} scale={1.0}>
