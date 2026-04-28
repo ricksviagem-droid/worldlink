@@ -141,12 +141,9 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
       const talkNod   = talking ? Math.sin(talkT.current) * 0.025 : 0
 
       g.position.y = autoYOffset + yOffset + bounce * enhance
-      g.rotation.x = (-fwdLean + talkNod) * enhance
-      g.rotation.z = (sideTilt + groupSway) * enhance
-      if (!moving && !talking)
-        g.rotation.y += (Math.sin(breathT.current * 0.18) * 0.12 - g.rotation.y) * 0.04
-      else
-        g.rotation.y += (0 - g.rotation.y) * 0.1
+      g.rotation.x = 0
+      g.rotation.z = 0
+      g.rotation.y += (0 - g.rotation.y) * 0.1
     }
 
     if (!useProceduralBones) return

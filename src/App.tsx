@@ -244,7 +244,7 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
     groupRef.current.position.x = positionRef.current.x
     groupRef.current.position.z = positionRef.current.z
     movingRef.current = velMagRef.current > 0.5
-    const target = Math.PI - facingRef.current
+    const target = facingRef.current
     let diff = target - smoothRot.current
     while (diff > Math.PI) diff -= Math.PI * 2
     while (diff < -Math.PI) diff += Math.PI * 2
