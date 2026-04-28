@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Html } from '@react-three/drei'
+import { Html, Sky } from '@react-three/drei'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { io } from 'socket.io-client'
 import * as THREE from 'three'
@@ -173,7 +173,7 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 5.2, ACCEL = 24, DECEL = 20, TURN_SPD = Math.PI * 5
+    const MAX_SPEED = 3.2, ACCEL = 10, DECEL = 22, TURN_SPD = Math.PI * 2.2
 
     // Raw screen-space input (up = -iz, right = +ix)
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
@@ -1074,17 +1074,23 @@ export default function App() {
         />
       )}
 
-      <Canvas shadows camera={{ position: [0, 14, 12], fov: 50 }}>
-        <color attach="background" args={['#f4a460']} />
-        <fog attach="fog" args={['#f4a460', 45, 95]} />
-        <ambientLight intensity={0.55} color="#ffe8c0" />
+      <Canvas
+        shadows
+        dpr={[1, 2]}
+        gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.1 }}
+        camera={{ position: [0, 14, 12], fov: 50 }}
+      >
+        <Sky turbidity={6} rayleigh={0.5} mieCoefficient={0.006} mieDirectionalG={0.85} sunPosition={[80, 18, -100]} />
+        <fog attach="fog" args={['#f0c870', 55, 110]} />
+        <ambientLight intensity={0.45} color="#ffe8c0" />
+        <hemisphereLight args={['#87ceeb', '#c8a460', 0.6]} />
         <directionalLight
-          position={[12, 22, 8]} intensity={2.0} color="#ffcc88" castShadow
+          position={[12, 22, 8]} intensity={1.6} color="#ffcc88" castShadow
           shadow-mapSize={[2048, 2048]}
           shadow-camera-far={90} shadow-camera-left={-35}
           shadow-camera-right={35} shadow-camera-top={35} shadow-camera-bottom={-35}
         />
-        <directionalLight position={[-10, 8, -5]} intensity={0.25} color="#a0c8ff" />
+        <directionalLight position={[-10, 8, -5]} intensity={0.2} color="#a0c8ff" />
         {/* Pool area — cool aqua fill */}
         <pointLight position={[0, 4, -10]} intensity={6} distance={20} color="#40e0d0" decay={2} />
         {/* Bar — warm amber */}

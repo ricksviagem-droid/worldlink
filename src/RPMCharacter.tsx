@@ -40,7 +40,7 @@ export interface RPMCharacterProps {
 function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: RPMCharacterProps) {
   const { scene } = useGLTF(url)
 
-  const clone = useMemo(() => {
+  const { clone, autoYOffset } = useMemo(() => {
     const c = scene.clone(true)
     const tintColor = tint ? new THREE.Color(tint) : null
     c.traverse(obj => {
@@ -49,14 +49,16 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
         m.castShadow = true
         m.receiveShadow = false
         if (tintColor) {
-          // Clone material so we don't affect the original shared material
           const mat = (m.material as THREE.MeshStandardMaterial).clone()
           mat.color.multiply(tintColor)
           m.material = mat
         }
       }
     })
-    return c
+    // Auto-lift so feet sit exactly on y=0 regardless of model pivot placement
+    const box = new THREE.Box3().setFromObject(c)
+    const auto = isFinite(box.min.y) ? -box.min.y : 0
+    return { clone: c, autoYOffset: auto }
   }, [scene, tint])
 
   const walkT   = useRef(Math.random() * Math.PI * 2)
@@ -94,11 +96,9 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     if (bones.rightUpLeg) bones.rightUpLeg.rotation.x += (-swing * 0.65 - bones.rightUpLeg.rotation.x) * lr
     if (bones.leftArm) {
       bones.leftArm.rotation.x += (-swing * 0.28 + idleSway * 0.5 - bones.leftArm.rotation.x) * lr
-      bones.leftArm.rotation.z += (0.04 - bones.leftArm.rotation.z) * lr * 0.1
     }
     if (bones.rightArm) {
       bones.rightArm.rotation.x += ( swing * 0.28 - idleSway * 0.5 - bones.rightArm.rotation.x) * lr
-      bones.rightArm.rotation.z += (-0.04 - bones.rightArm.rotation.z) * lr * 0.1
     }
     if (bones.spine2) {
       bones.spine2.rotation.y += (Math.sin(walkT.current * 0.5) * (moving ? 0.04 : 0) + idleSway * 0.6 - bones.spine2.rotation.y) * lr * 0.4
@@ -112,7 +112,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
     }
   })
 
-  return <primitive object={clone} position={[0, yOffset, 0]} scale={scale} />
+  return <primitive object={clone} position={[0, autoYOffset + yOffset, 0]} scale={scale} />
 }
 
 export function RPMCharacter(props: RPMCharacterProps) {
