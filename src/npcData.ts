@@ -17,6 +17,7 @@ export interface NpcDef {
   glbUrl?: string
   glbScale?: number
   glbYOffset?: number
+  glbTint?: string
 }
 
 export const NPCS: NpcDef[] = [
@@ -52,6 +53,10 @@ export const NPCS: NpcDef[] = [
     hairColor: '#100808',
     pantsColor: '#f0e4f0',
     position: [-5, 0, -2],
+    glbUrl: '/Meshy_AI_chill_anime_girl_cur_0424233138_texture.glb',
+    glbScale: 1.0,
+    glbYOffset: 0,
+    glbTint: '#f8c0d8',
   },
   {
     id: 'bartender',
@@ -67,6 +72,9 @@ export const NPCS: NpcDef[] = [
     hairColor: '#0a0808',
     pantsColor: '#111118',
     position: [13.5, 0, -2],
+    glbUrl: '/Meshy_AI_Chill_guy_0424232958_texture.glb',
+    glbScale: 1.0,
+    glbYOffset: 0,
   },
   {
     id: 'waiter',
@@ -82,6 +90,9 @@ export const NPCS: NpcDef[] = [
     hairColor: '#1a0c08',
     pantsColor: '#1a2030',
     position: [5, 0, 1],
+    glbUrl: '/Meshy_AI_Chill_guy_0424232958_texture.glb',
+    glbScale: 0.95,
+    glbYOffset: 0,
   },
 ]
 

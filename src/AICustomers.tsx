@@ -2,19 +2,25 @@ import { useFrame } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
 import { useRef } from 'react'
 import * as THREE from 'three'
-import { CharacterMesh } from './CharacterMesh'
+import { RPMCharacter } from './RPMCharacter'
 
 export type CustomerNeed = 'drink' | 'towel' | 'menu' | 'happy' | 'left'
 
 export const SERVE_DISTANCE = 4.5
 export const PATIENCE_SECONDS = 40
 
+// Alternates between chill guy and anime girl models
+const GLB_POOL = [
+  '/Meshy_AI_Chill_guy_0424232958_texture.glb',
+  '/Meshy_AI_chill_anime_girl_cur_0424233138_texture.glb',
+]
+
 export const CUSTOMER_DEFS = [
-  { id: 'c1', bodyColor: '#e74c3c', headColor: '#f0c27f', hairColor: '#3a1808', pantsColor: '#1a1828', spawn: [2, 0, -5] as [number, number, number] },
-  { id: 'c2', bodyColor: '#27ae60', headColor: '#d4a076', hairColor: '#2a1a08', pantsColor: '#c0a870', spawn: [-4, 0, -4] as [number, number, number] },
-  { id: 'c3', bodyColor: '#8e44ad', headColor: '#f0c27f', hairColor: '#1a0818', pantsColor: '#1a0a1a', spawn: [7, 0, -5] as [number, number, number] },
-  { id: 'c4', bodyColor: '#16a085', headColor: '#e8b88a', hairColor: '#5a3010', pantsColor: '#f0e8d8', spawn: [1, 0, -1] as [number, number, number] },
-  { id: 'c5', bodyColor: '#d35400', headColor: '#c8855a', hairColor: '#0a0808', pantsColor: '#1a1a18', spawn: [11, 0, -4] as [number, number, number] },
+  { id: 'c1', glbUrl: GLB_POOL[0], bodyColor: '#e74c3c', headColor: '#f0c27f', hairColor: '#3a1808', pantsColor: '#1a1828', spawn: [2, 0, -5] as [number, number, number] },
+  { id: 'c2', glbUrl: GLB_POOL[1], bodyColor: '#27ae60', headColor: '#d4a076', hairColor: '#2a1a08', pantsColor: '#c0a870', spawn: [-4, 0, -4] as [number, number, number] },
+  { id: 'c3', glbUrl: GLB_POOL[0], bodyColor: '#8e44ad', headColor: '#f0c27f', hairColor: '#1a0818', pantsColor: '#1a0a1a', spawn: [7, 0, -5] as [number, number, number] },
+  { id: 'c4', glbUrl: GLB_POOL[1], bodyColor: '#16a085', headColor: '#e8b88a', hairColor: '#5a3010', pantsColor: '#f0e8d8', spawn: [1, 0, -1] as [number, number, number] },
+  { id: 'c5', glbUrl: GLB_POOL[0], bodyColor: '#d35400', headColor: '#c8855a', hairColor: '#0a0808', pantsColor: '#1a1a18', spawn: [11, 0, -4] as [number, number, number] },
 ]
 
 const NEED_ICONS: Record<CustomerNeed, string> = {
@@ -37,8 +43,8 @@ function CustomerCharacter({
   const patience  = useRef(1.0)
   const barRef    = useRef<HTMLDivElement>(null)
   const firedRef  = useRef(false)
+  const movingRef = useRef(false)
 
-  // Reset patience when need changes
   const prevNeed  = useRef(need)
   if (prevNeed.current !== need) {
     patience.current = 1.0
@@ -49,7 +55,6 @@ function CustomerCharacter({
   useFrame((_, delta) => {
     if (!groupRef.current) return
 
-    // Wander
     timer.current += delta
     if (timer.current > 3 + Math.random() * 4) {
       const angle = Math.random() * Math.PI * 2
@@ -66,10 +71,10 @@ function CustomerCharacter({
     groupRef.current.position.z = pos.current.z
     const dx = target.current.x - pos.current.x
     const dz = target.current.z - pos.current.z
-    if (Math.abs(dx) + Math.abs(dz) > 0.005) groupRef.current.rotation.y = Math.atan2(dx, dz)
+    movingRef.current = Math.abs(dx) + Math.abs(dz) > 0.005
+    if (movingRef.current) groupRef.current.rotation.y = Math.atan2(dx, dz)
     groupRef.current.position.y = Math.sin(Date.now() * 0.001 + def.spawn[0]) * 0.03
 
-    // Patience countdown (only during mission, only when waiting)
     const waiting = need !== 'happy' && need !== 'left'
     if (missionActive && waiting && !firedRef.current) {
       patience.current = Math.max(0, patience.current - delta / PATIENCE_SECONDS)
@@ -91,10 +96,9 @@ function CustomerCharacter({
 
   return (
     <group ref={groupRef} position={def.spawn}>
-      <CharacterMesh bodyColor={def.bodyColor} headColor={def.headColor} hairColor={def.hairColor} pantsColor={def.pantsColor} />
+      <RPMCharacter url={def.glbUrl} scale={1.0} movingRef={movingRef} />
       <Html position={[0, 2.4, 0]} center distanceFactor={12}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 52 }}>
-          {/* Patience bar */}
           {showBar && (
             <div style={{
               width: 48, height: 4, background: 'rgba(0,0,0,0.4)', borderRadius: 3, overflow: 'hidden',
@@ -102,7 +106,6 @@ function CustomerCharacter({
               <div ref={barRef} style={{ height: '100%', borderRadius: 3, width: '100%', background: '#27ae60', transition: 'background 0.3s' }} />
             </div>
           )}
-          {/* Need icon */}
           <div style={{
             background: canServe ? 'rgba(39,174,96,0.92)' : need === 'happy' ? 'rgba(243,156,18,0.85)' : need === 'left' ? 'rgba(100,100,100,0.7)' : 'rgba(0,0,0,0.65)',
             padding: '4px 12px', borderRadius: 18, fontSize: 16,

@@ -3,7 +3,6 @@ import { useFrame } from '@react-three/fiber'
 import { Component, Suspense, useMemo, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
 
-// Bone name candidates: tries RPM → Mixamo → generic UE4 names
 const BONE_VARIANTS: Record<string, string[]> = {
   hips:         ['Hips',         'mixamorig:Hips',         'Pelvis',       'hip'],
   spine2:       ['Spine2',       'mixamorig:Spine2',       'Spine1',       'mixamorig:Spine1', 'chest'],
@@ -33,30 +32,37 @@ export interface RPMCharacterProps {
   url: string
   scale?: number
   yOffset?: number
+  tint?: string
   movingRef?: React.RefObject<boolean>
   talkingRef?: React.RefObject<boolean>
 }
 
-function RPMMesh({ url, scale = 1, yOffset = 0, movingRef, talkingRef }: RPMCharacterProps) {
+function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: RPMCharacterProps) {
   const { scene } = useGLTF(url)
 
   const clone = useMemo(() => {
     const c = scene.clone(true)
+    const tintColor = tint ? new THREE.Color(tint) : null
     c.traverse(obj => {
       if ((obj as THREE.Mesh).isMesh) {
         const m = obj as THREE.Mesh
         m.castShadow = true
         m.receiveShadow = false
+        if (tintColor) {
+          // Clone material so we don't affect the original shared material
+          const mat = (m.material as THREE.MeshStandardMaterial).clone()
+          mat.color.multiply(tintColor)
+          m.material = mat
+        }
       }
     })
     return c
-  }, [scene])
+  }, [scene, tint])
 
   const walkT   = useRef(Math.random() * Math.PI * 2)
   const breathT = useRef(Math.random() * Math.PI * 2)
   const talkT   = useRef(0)
 
-  // Bone refs cached after first clone
   const bones = useMemo(() => {
     const b: Partial<Record<keyof typeof BONE_VARIANTS, THREE.Bone>> = {}
     for (const [key, names] of Object.entries(BONE_VARIANTS)) {
@@ -76,7 +82,7 @@ function RPMMesh({ url, scale = 1, yOffset = 0, movingRef, talkingRef }: RPMChar
     breathT.current += delta * 1.1
     if (talking) talkT.current  += delta * 3.5
 
-    if (!hasRig) return  // unrigged model: parent group handles float
+    if (!hasRig) return
 
     const swing    = moving ? Math.sin(walkT.current) * 0.42 : 0
     const idleSway = !moving ? Math.sin(breathT.current * 0.7) * 0.018 : 0

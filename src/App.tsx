@@ -251,10 +251,12 @@ function LocalPlayer({ positionRef, bodyColor, headColor, hairColor, pantsColor,
 
   return (
     <group ref={groupRef}>
-      {glbUrl
-        ? <RPMCharacter url={glbUrl} scale={glbScale ?? 1} yOffset={glbYOffset ?? 0} movingRef={movingRef} />
-        : <CharacterMesh bodyColor={bodyColor} headColor={headColor} hairColor={hairColor} pantsColor={pantsColor} movingRef={movingRef} />
-      }
+      <RPMCharacter
+        url={glbUrl ?? '/Meshy_AI_Chill_guy_0424232958_texture.glb'}
+        scale={glbScale ?? 1}
+        yOffset={glbYOffset ?? 0}
+        movingRef={movingRef}
+      />
     </group>
   )
 }
@@ -347,7 +349,7 @@ function NPCCharacter({ npc, nearby }: { npc: NpcDef; nearby: boolean }) {
   return (
     <group ref={groupRef} position={npc.position}>
       {npc.glbUrl
-        ? <RPMCharacter url={npc.glbUrl} scale={npc.glbScale ?? 1} yOffset={npc.glbYOffset ?? 0} movingRef={movingRef} />
+        ? <RPMCharacter url={npc.glbUrl} scale={npc.glbScale ?? 1} yOffset={npc.glbYOffset ?? 0} tint={npc.glbTint} movingRef={movingRef} />
         : <CharacterMesh bodyColor={npc.bodyColor} headColor={npc.headColor} hairColor={npc.hairColor} pantsColor={npc.pantsColor} movingRef={movingRef} />
       }
       <Html position={[0, 2.2, 0]} center distanceFactor={12}>
