@@ -447,6 +447,7 @@ export default function App() {
   const camYawRef   = useRef(0)
   const pinchStart  = useRef({ dist: 0, zoom: 1.0 })
   const dragRef     = useRef<{ x: number; yaw: number; type: 'orbit' | 'pov' } | null>(null)
+  const camTouchRef = useRef<{ id: number; x: number; yaw: number } | null>(null)
   const isLockedRef = useRef(false)
   const [isPointerLocked, setIsPointerLocked] = useState(false)
   const [position, setPosition] = useState<PlayerState>({ x: 0, z: 0 })
@@ -764,6 +765,13 @@ export default function App() {
       const dx = e.touches[0].clientX - e.touches[1].clientX
       const dy = e.touches[0].clientY - e.touches[1].clientY
       pinchStart.current = { dist: Math.sqrt(dx*dx + dy*dy), zoom: zoomRef.current }
+      camTouchRef.current = null
+    } else if (e.touches.length === 1) {
+      const t = e.touches[0]
+      // Right 45% of screen → camera rotation zone
+      if (t.clientX > window.innerWidth * 0.55) {
+        camTouchRef.current = { id: t.identifier, x: t.clientX, yaw: camYawRef.current }
+      }
     }
   }
 
@@ -773,8 +781,13 @@ export default function App() {
       const dy = e.touches[0].clientY - e.touches[1].clientY
       const dist = Math.sqrt(dx*dx + dy*dy)
       zoomRef.current = Math.min(3, Math.max(0.35, pinchStart.current.zoom * (dist / pinchStart.current.dist)))
+    } else if (camTouchRef.current) {
+      const t = Array.from(e.touches).find(t => t.identifier === camTouchRef.current!.id)
+      if (t) camYawRef.current = camTouchRef.current.yaw - (t.clientX - camTouchRef.current.x) * 0.008
     }
   }
+
+  const handlePinchEnd = () => { camTouchRef.current = null }
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 2) {
@@ -832,6 +845,8 @@ export default function App() {
       style={{ width: '100vw', height: '100vh', position: 'relative', background: '#f4a460' }}
       onTouchStart={handlePinchStart}
       onTouchMove={handlePinchMove}
+      onTouchEnd={handlePinchEnd}
+      onTouchCancel={handlePinchEnd}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

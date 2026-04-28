@@ -129,11 +129,25 @@ export function MobileControls({ onMove, onTalk, nearNpc }: Props) {
         )}
       </div>
 
+      {/* Camera rotation hint — right side, hidden when Talk button is shown */}
+      {!touch && !nearNpc && (
+        <div style={{
+          position: 'absolute', right: 44, bottom: 44,
+          width: 64, height: 64, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.05)',
+          border: '1.5px dashed rgba(255,255,255,0.18)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          pointerEvents: 'none',
+        }}>
+          <span style={{ fontSize: 18, opacity: 0.35, userSelect: 'none' }}>⟳</span>
+        </div>
+      )}
+
       {/* Talk / Serve button */}
       {nearNpc && (
         <div style={{ position: 'absolute', right: 32, bottom: 44, pointerEvents: 'auto' }}>
           <button
-            onTouchStart={e => { e.preventDefault(); onTalk() }}
+            onTouchStart={e => { e.preventDefault(); e.stopPropagation(); onTalk() }}
             style={{
               width: 72, height: 72, borderRadius: '50%',
               border: '2.5px solid rgba(243,156,18,0.75)',
