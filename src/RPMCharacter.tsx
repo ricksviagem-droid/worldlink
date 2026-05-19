@@ -196,6 +196,11 @@ function RPMMesh({ url, scale = 1, yOffset = 0, tint, movingRef, talkingRef }: R
       g.rotation.y += (0 - g.rotation.y) * 0.1
     }
 
+    // Correct arm spread (bind pose A/T-pose) in both clip and procedural paths
+    const armLr = 0.06
+    if (bones.leftArm)  bones.leftArm.rotation.z  += (0 - bones.leftArm.rotation.z)  * armLr
+    if (bones.rightArm) bones.rightArm.rotation.z += (0 - bones.rightArm.rotation.z) * armLr
+
     if (!hasRig || hasClips) return
     const swing    = moving ? Math.sin(walkT.current) * 0.42 : 0
     const boneSway = !moving ? Math.sin(breathT.current * 0.7) * 0.018 : 0
