@@ -175,7 +175,7 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 3.2, ACCEL = 12, DECEL = 18, TURN_SPD = Math.PI * 4
+    const MAX_SPEED = 1.6, ACCEL = 6, DECEL = 10, TURN_SPD = Math.PI * 2.2
 
     // Unified input: keyboard + joystick merged into screen-space ix/iz
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
