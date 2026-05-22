@@ -29,10 +29,10 @@ type PlayersMap = Record<string, PlayerState>
 type CamMode = 'iso' | 'top' | 'close' | 'wide' | 'pov'
 
 const CAM: Record<Exclude<CamMode,'pov'>, { y: number; dz: number; speed: number }> = {
-  iso:   { y: 14, dz: 12, speed: 0.07 },
-  top:   { y: 24, dz: 2,  speed: 0.06 },
-  close: { y: 6,  dz: 5,  speed: 0.10 },
-  wide:  { y: 20, dz: 20, speed: 0.05 },
+  iso:   { y: 12, dz: 14, speed: 0.05 },
+  top:   { y: 26, dz: 2,  speed: 0.05 },
+  close: { y: 7,  dz: 6,  speed: 0.08 },
+  wide:  { y: 22, dz: 22, speed: 0.04 },
 }
 const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide', 'pov']
 
@@ -76,8 +76,8 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
     const speed = velMagRef.current
     const cur   = targetRef.current
 
-    smooth.current.x += (cur.x - smooth.current.x) * 0.12
-    smooth.current.z += (cur.z - smooth.current.z) * 0.12
+    smooth.current.x += (cur.x - smooth.current.x) * 0.08
+    smooth.current.z += (cur.z - smooth.current.z) * 0.08
 
     if (m.current === 'pov') {
       const angle = facingRef.current ?? 0
@@ -99,12 +99,12 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
     // Disabled during mobile joystick use to break the feedback loop where
     // camera yaw rotation changes the joystick world-direction → infinite spin.
     const joystickActive = Math.abs(mobileInputRef.current.x) > 0.01 || Math.abs(mobileInputRef.current.z) > 0.01
-    if (speed > 0.15 && !joystickActive) {
+    if (speed > 0.6 && !joystickActive) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
       while (diff > Math.PI) diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 6 * delta)
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 2.0 * delta)
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
@@ -173,7 +173,7 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 5.0, ACCEL = 16, DECEL = 22, TURN_SPD = Math.PI * 3.0
+    const MAX_SPEED = 2.8, ACCEL = 10, DECEL = 15, TURN_SPD = Math.PI * 1.8
 
     // Raw screen-space input (up = -iz, right = +ix)
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
