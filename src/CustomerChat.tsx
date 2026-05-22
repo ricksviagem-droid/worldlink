@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { audio } from './audio'
 
 const CUSTOMER_NAMES: Record<string, string> = {
-  c1: 'Carlos', c2: 'Sofia', c3: 'Jake', c4: 'Marina', c5: 'Pedro',
+  c1: 'Davi', c2: 'Sofia', c3: 'Jake', c4: 'Marina', c5: 'Pedro',
 }
 const CUSTOMER_EMOJIS: Record<string, string> = {
   c1: '🧔', c2: '💁‍♀️', c3: '🤙', c4: '🧘‍♀️', c5: '💼',

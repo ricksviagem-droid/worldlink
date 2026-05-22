@@ -29,10 +29,10 @@ type PlayersMap = Record<string, PlayerState>
 type CamMode = 'iso' | 'top' | 'close' | 'wide' | 'pov'
 
 const CAM: Record<Exclude<CamMode,'pov'>, { y: number; dz: number; speed: number }> = {
-  iso:   { y: 14, dz: 12, speed: 0.07 },
-  top:   { y: 24, dz: 2,  speed: 0.06 },
-  close: { y: 6,  dz: 5,  speed: 0.10 },
-  wide:  { y: 20, dz: 20, speed: 0.05 },
+  iso:   { y: 11, dz: 13, speed: 0.09 },
+  top:   { y: 28, dz: 1,  speed: 0.07 },
+  close: { y: 6,  dz: 7,  speed: 0.12 },
+  wide:  { y: 20, dz: 22, speed: 0.06 },
 }
 const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide', 'pov']
 
@@ -76,8 +76,8 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
     const speed = velMagRef.current
     const cur   = targetRef.current
 
-    smooth.current.x += (cur.x - smooth.current.x) * 0.12
-    smooth.current.z += (cur.z - smooth.current.z) * 0.12
+    smooth.current.x += (cur.x - smooth.current.x) * 0.13
+    smooth.current.z += (cur.z - smooth.current.z) * 0.13
 
     if (m.current === 'pov') {
       const angle = facingRef.current ?? 0
@@ -98,13 +98,15 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
     // Auto-follow: swing camera behind player whenever moving (keyboard only).
     // Disabled during mobile joystick use to break the feedback loop where
     // camera yaw rotation changes the joystick world-direction → infinite spin.
+    // Only drift camera behind player when fully stopped — never during movement.
+    // This prevents the feedback loop where camera yaw changes WASD direction mid-move.
     const joystickActive = Math.abs(mobileInputRef.current.x) > 0.01 || Math.abs(mobileInputRef.current.z) > 0.01
-    if (speed > 0.15 && !joystickActive) {
+    if (speed < 0.15 && !joystickActive) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
-      while (diff > Math.PI) diff -= Math.PI * 2
+      while (diff > Math.PI)  diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 6 * delta)
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 0.7 * delta)
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
@@ -173,9 +175,9 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 5.0, ACCEL = 16, DECEL = 22, TURN_SPD = Math.PI * 3.0
+    const MAX_SPEED = 1.6, ACCEL = 6, DECEL = 10, TURN_SPD = Math.PI * 2.2
 
-    // Raw screen-space input (up = -iz, right = +ix)
+    // Unified input: keyboard + joystick merged into screen-space ix/iz
     let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
     const keys = keysRef.current
     if (keys['w'] || keys['ArrowUp'])    iz -= 1
@@ -183,7 +185,7 @@ function MovementSystem({
     if (keys['a'] || keys['ArrowLeft'])  ix -= 1
     if (keys['d'] || keys['ArrowRight']) ix += 1
 
-    // Rotate input by camera yaw → camera-relative world movement
+    // Camera-relative world movement
     const yaw = camYawRef.current
     const wix = iz * Math.sin(yaw) + ix * Math.cos(yaw)
     const wiz = iz * Math.cos(yaw) - ix * Math.sin(yaw)
