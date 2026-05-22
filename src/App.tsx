@@ -29,10 +29,10 @@ type PlayersMap = Record<string, PlayerState>
 type CamMode = 'iso' | 'top' | 'close' | 'wide' | 'pov'
 
 const CAM: Record<Exclude<CamMode,'pov'>, { y: number; dz: number; speed: number }> = {
-  iso:   { y: 12, dz: 14, speed: 0.05 },
-  top:   { y: 26, dz: 2,  speed: 0.05 },
-  close: { y: 7,  dz: 6,  speed: 0.08 },
-  wide:  { y: 22, dz: 22, speed: 0.04 },
+  iso:   { y: 11, dz: 13, speed: 0.09 },
+  top:   { y: 28, dz: 1,  speed: 0.07 },
+  close: { y: 6,  dz: 7,  speed: 0.12 },
+  wide:  { y: 20, dz: 22, speed: 0.06 },
 }
 const CAM_KEYS: CamMode[] = ['iso', 'top', 'close', 'wide', 'pov']
 
@@ -76,8 +76,8 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
     const speed = velMagRef.current
     const cur   = targetRef.current
 
-    smooth.current.x += (cur.x - smooth.current.x) * 0.08
-    smooth.current.z += (cur.z - smooth.current.z) * 0.08
+    smooth.current.x += (cur.x - smooth.current.x) * 0.13
+    smooth.current.z += (cur.z - smooth.current.z) * 0.13
 
     if (m.current === 'pov') {
       const angle = facingRef.current ?? 0
@@ -98,13 +98,15 @@ function CameraRig({ targetRef, mode, facingRef, zoomRef, camYawRef, velMagRef, 
     // Auto-follow: swing camera behind player whenever moving (keyboard only).
     // Disabled during mobile joystick use to break the feedback loop where
     // camera yaw rotation changes the joystick world-direction → infinite spin.
+    // Only drift camera behind player when fully stopped — never during movement.
+    // This prevents the feedback loop where camera yaw changes WASD direction mid-move.
     const joystickActive = Math.abs(mobileInputRef.current.x) > 0.01 || Math.abs(mobileInputRef.current.z) > 0.01
-    if (!joystickActive) {
+    if (speed < 0.15 && !joystickActive) {
       const targetYaw = -facingRef.current
       let diff = targetYaw - (camYawRef.current ?? 0)
-      while (diff > Math.PI) diff -= Math.PI * 2
+      while (diff > Math.PI)  diff -= Math.PI * 2
       while (diff < -Math.PI) diff += Math.PI * 2
-      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 1.5 * delta)
+      camYawRef.current = (camYawRef.current ?? 0) + diff * Math.min(1, Math.PI * 0.7 * delta)
     }
 
     const cfg = CAM[m.current as Exclude<CamMode,'pov'>]
@@ -173,50 +175,35 @@ function MovementSystem({
 
   useFrame((_, delta) => {
     if (chatOpenRef.current) return
-    const MAX_SPEED = 2.8, ACCEL = 10, DECEL = 15, TURN_SPD = Math.PI * 1.5
+    const MAX_SPEED = 3.2, ACCEL = 12, DECEL = 18, TURN_SPD = Math.PI * 4
 
+    // Unified input: keyboard + joystick merged into screen-space ix/iz
+    let ix = mobileInputRef.current.x, iz = mobileInputRef.current.z
     const keys = keysRef.current
-    const ix = mobileInputRef.current.x
-    const iz = mobileInputRef.current.z
-    const joystickActive = Math.abs(ix) > 0.01 || Math.abs(iz) > 0.01
+    if (keys['w'] || keys['ArrowUp'])    iz -= 1
+    if (keys['s'] || keys['ArrowDown'])  iz += 1
+    if (keys['a'] || keys['ArrowLeft'])  ix -= 1
+    if (keys['d'] || keys['ArrowRight']) ix += 1
 
-    if (joystickActive) {
-      // Mobile joystick: camera-relative (camera doesn't auto-follow → no feedback loop)
-      const yaw = camYawRef.current
-      const wix = iz * Math.sin(yaw) + ix * Math.cos(yaw)
-      const wiz = iz * Math.cos(yaw) - ix * Math.sin(yaw)
-      const len = Math.sqrt(wix * wix + wiz * wiz)
-      if (len > 0.01) {
-        const nx = wix / len, nz = wiz / len
-        velocityRef.current.x += (nx * MAX_SPEED - velocityRef.current.x) * Math.min(1, ACCEL * delta)
-        velocityRef.current.z += (nz * MAX_SPEED - velocityRef.current.z) * Math.min(1, ACCEL * delta)
-        const targetFacing = Math.atan2(nx, -nz)
-        let diff = targetFacing - facingRef.current
-        while (diff > Math.PI) diff -= Math.PI * 2
-        while (diff < -Math.PI) diff += Math.PI * 2
-        facingRef.current += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPD * delta)
-      } else {
-        velocityRef.current.x *= Math.max(0, 1 - DECEL * delta)
-        velocityRef.current.z *= Math.max(0, 1 - DECEL * delta)
-      }
+    // Camera-relative world movement
+    const yaw = camYawRef.current
+    const wix = iz * Math.sin(yaw) + ix * Math.cos(yaw)
+    const wiz = iz * Math.cos(yaw) - ix * Math.sin(yaw)
+
+    const len = Math.sqrt(wix * wix + wiz * wiz)
+    const hasInput = len > 0.01
+    if (hasInput) {
+      const nx = wix / len, nz = wiz / len
+      velocityRef.current.x += (nx * MAX_SPEED - velocityRef.current.x) * Math.min(1, ACCEL * delta)
+      velocityRef.current.z += (nz * MAX_SPEED - velocityRef.current.z) * Math.min(1, ACCEL * delta)
+      const targetFacing = Math.atan2(nx, -nz)
+      let diff = targetFacing - facingRef.current
+      while (diff > Math.PI) diff -= Math.PI * 2
+      while (diff < -Math.PI) diff += Math.PI * 2
+      facingRef.current += Math.sign(diff) * Math.min(Math.abs(diff), TURN_SPD * delta)
     } else {
-      // Keyboard: character-relative (A/D rotate, W/S forward/back — no feedback loop)
-      if (keys['a'] || keys['ArrowLeft'])  facingRef.current -= TURN_SPD * delta
-      if (keys['d'] || keys['ArrowRight']) facingRef.current += TURN_SPD * delta
-
-      let forward = 0
-      if (keys['w'] || keys['ArrowUp'])   forward = 1
-      if (keys['s'] || keys['ArrowDown']) forward = -1
-
-      if (forward !== 0) {
-        const wx = Math.sin(facingRef.current) * forward
-        const wz = -Math.cos(facingRef.current) * forward
-        velocityRef.current.x += (wx * MAX_SPEED - velocityRef.current.x) * Math.min(1, ACCEL * delta)
-        velocityRef.current.z += (wz * MAX_SPEED - velocityRef.current.z) * Math.min(1, ACCEL * delta)
-      } else {
-        velocityRef.current.x *= Math.max(0, 1 - DECEL * delta)
-        velocityRef.current.z *= Math.max(0, 1 - DECEL * delta)
-      }
+      velocityRef.current.x *= Math.max(0, 1 - DECEL * delta)
+      velocityRef.current.z *= Math.max(0, 1 - DECEL * delta)
     }
     const vx = velocityRef.current.x, vz = velocityRef.current.z
     velMagRef.current = Math.sqrt(vx * vx + vz * vz)
